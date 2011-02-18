@@ -19,6 +19,8 @@
 -- THE SOFTWARE.
 
 require("zmq")
+local socket = require"socket"
+local time = socket.gettime
 
 if not arg[3] then
     print("usage: lua remote_lat.lua <connect-to> <message-size> <roundtrip-count>")
@@ -36,19 +38,19 @@ s:connect(connect_to)
 local msg = ""
 for i = 1, message_size do msg = msg .. "0" end
 
-local start_time = os.time()
+local start_time = time()
 
 for i = 1, roundtrip_count do
     s:send(msg)
     msg = s:recv()
 end
 
-local end_time = os.time()
+local end_time = time()
 
 s:close()
 ctx:term()
 
-local elapsed = os.difftime(end_time, start_time)
+local elapsed = end_time - start_time
 local latency = elapsed * 1000000 / roundtrip_count / 2
 
 print(string.format("message size: %i [B]", message_size))

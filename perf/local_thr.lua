@@ -19,6 +19,8 @@
 -- THE SOFTWARE.
 
 require("zmq")
+local socket = require"socket"
+local time = socket.gettime
 
 if not arg[3] then
     print("usage: lua local_thr.lua <bind-to> <message-size> <message-count>")
@@ -36,22 +38,22 @@ s:bind(bind_to)
 
 local msg = s:recv()
 
-local start_time = os.time()
+local start_time = time()
 
 for i = 1, message_count - 1 do
     msg = s:recv()
 end
 
-local end_time = os.time()
+local end_time = time()
 
 s:close()
 ctx:term()
 
-local elapsed = os.difftime(end_time, start_time)
+local elapsed = end_time - start_time
 if elapsed == 0 then elapsed = 1 end
 
 local throughput = message_count / elapsed
-local megabits = throughput * message_size * 8
+local megabits = throughput * message_size * 8 / 1000000
 
 print(string.format("message size: %i [B]", message_size))
 print(string.format("message count: %i", message_count))

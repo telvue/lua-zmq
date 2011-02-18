@@ -40,7 +40,7 @@ for i = 1, message_count do
   s:send(msg)
 end
 
-os.execute("sleep " .. 10)
+--os.execute("sleep " .. 10)
 
 s:close()
 ctx:term()
