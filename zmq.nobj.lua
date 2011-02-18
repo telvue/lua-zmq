@@ -84,6 +84,9 @@ c_function "init" {
 	if(${ctx} == NULL) ${err} = -1;
 ]]
 },
+c_function "device" {
+	c_call "ZMQ_Error" "zmq_device" { "int", "device", "ZMQ_Socket", "insock", "ZMQ_Socket", "outsock" },
+},
 
 subfiles {
 "error.nobj.lua",
