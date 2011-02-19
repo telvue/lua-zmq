@@ -5,6 +5,7 @@ use_globals = false,
 hide_meta_info = true,
 luajit_ffi = true,
 
+sys_include "string.h",
 include "zmq.h",
 
 c_source[[
@@ -97,8 +98,17 @@ c_function "init" {
 		${ctx} = zmq_init(lua_tointeger(L,${io_threads::idx}));
 		if(${ctx} == NULL) ${err} = -1;
 		${ctx}_flags |= OBJ_UDATA_CTX_SHOULD_FREE;
-	} else {
+	} else if(lua_isuserdata(L, ${io_threads::idx})) {
 		${ctx} = lua_touserdata(L, ${io_threads::idx});
+	} else {
+		/* check if value is a LuaJIT 'cdata' */
+		int type = lua_type(L, ${io_threads::idx});
+		const char *typename = lua_typename(L, type);
+		if(strncmp(typename, "cdata", sizeof("cdata")) == 0) {
+			${ctx} = (void *)lua_topointer(L, ${io_threads::idx});
+		} else {
+			return luaL_argerror(L, ${io_threads::idx}, "(expected number)");
+		}
 	}
 ]]
 },

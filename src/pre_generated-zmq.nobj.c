@@ -10,6 +10,7 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#include <string.h>
 #include "zmq.h"
 
 
@@ -119,6 +120,7 @@ typedef struct reg_sub_module {
 
 #define OBJ_UDATA_FLAG_OWN (1<<0)
 #define OBJ_UDATA_FLAG_LOOKUP (1<<1)
+#define OBJ_UDATA_LAST_FLAG (OBJ_UDATA_FLAG_LOOKUP)
 typedef struct obj_udata {
 	void     *obj;
 	uint32_t flags;  /**< lua_own:1bit */
@@ -587,6 +589,26 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_init_code) {
 
 
 static const char *zmq_ffi_lua_code = "\
+-- Copyright (c) 2010 by Robert G. Jakabosky <bobby@sharedrealm.com>\n\
+--\n\
+-- Permission is hereby granted, free of charge, to any person obtaining a copy\n\
+-- of this software and associated documentation files (the \"Software\"), to deal\n\
+-- in the Software without restriction, including without limitation the rights\n\
+-- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n\
+-- copies of the Software, and to permit persons to whom the Software is\n\
+-- furnished to do so, subject to the following conditions:\n\
+--\n\
+-- The above copyright notice and this permission notice shall be included in\n\
+-- all copies or substantial portions of the Software.\n\
+--\n\
+-- THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n\
+-- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n\
+-- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n\
+-- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n\
+-- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n\
+-- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n\
+-- THE SOFTWARE.\n\
+\n\
 local zmq = ...\n\
 \n\
 -- try loading luajit's ffi\n\
@@ -975,6 +997,8 @@ static const int opt_types[] = {
 #define MAX_OPTS ZMQ_BACKLOG
 
 
+#define OBJ_UDATA_CTX_SHOULD_FREE (OBJ_UDATA_LAST_FLAG << 1)
+
 
 
 /* method: version */
@@ -997,17 +1021,31 @@ static int zmq__version__func(lua_State *L) {
 /* method: init */
 static int zmq__init__func(lua_State *L) {
   int is_error = 0;
-  int io_threads_idx1 = luaL_checkinteger(L,1);
+  int ctx_idx1_flags = OBJ_UDATA_FLAG_OWN;
   ZMQ_Ctx ctx_idx1;
   ZMQ_Error err_idx2 = 0;
-	ctx_idx1 = zmq_init(io_threads_idx1);
-	if(ctx_idx1 == NULL) err_idx2 = -1;
+	if(lua_isnumber(L, 1)) {
+		ctx_idx1 = zmq_init(lua_tointeger(L,1));
+		if(ctx_idx1 == NULL) err_idx2 = -1;
+		ctx_idx1_flags |= OBJ_UDATA_CTX_SHOULD_FREE;
+	} else if(lua_isuserdata(L, 1)) {
+		ctx_idx1 = lua_touserdata(L, 1);
+	} else {
+		/* check if value is a LuaJIT 'cdata' */
+		int type = lua_type(L, 1);
+		const char *typename = lua_typename(L, type);
+		if(strncmp(typename, "cdata", sizeof("cdata")) == 0) {
+			ctx_idx1 = (void *)lua_topointer(L, 1);
+		} else {
+			return luaL_argerror(L, 1, "(expected number)");
+		}
+	}
 
   is_error = (0 != err_idx2);
   if(is_error) {
     lua_pushnil(L);
   } else {
-    obj_type_ZMQ_Ctx_push(L, ctx_idx1, OBJ_UDATA_FLAG_OWN);
+    obj_type_ZMQ_Ctx_push(L, ctx_idx1, ctx_idx1_flags);
   }
   error_code__ZMQ_Error__push(L, err_idx2);
   return 2;
@@ -1056,12 +1094,22 @@ static void error_code__ZMQ_Error__push(lua_State *L, ZMQ_Error err) {
 	}
 }
 
+/* method: delete */
+static int ZMQ_Ctx__delete__meth(lua_State *L) {
+  int this_idx1_flags = 0;
+  ZMQ_Ctx * this_idx1 = obj_type_ZMQ_Ctx_delete(L,1,&(this_idx1_flags));
+  if(!(this_idx1_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
+	if(this_idx1_flags & OBJ_UDATA_CTX_SHOULD_FREE) {
+		zmq_term(this_idx1);
+	}
+
+  return 0;
+}
+
 /* method: term */
 static int ZMQ_Ctx__term__meth(lua_State *L) {
   int is_error = 0;
-  int flags = 0;
-  ZMQ_Ctx * this_idx1 = obj_type_ZMQ_Ctx_delete(L,1,&(flags));
-  if(!(flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
+  ZMQ_Ctx * this_idx1 = obj_type_ZMQ_Ctx_check(L,1);
   ZMQ_Error ret_idx1 = 0;
   ret_idx1 = zmq_term(this_idx1);
   is_error = (0 != ret_idx1);
@@ -1090,6 +1138,7 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
   int is_error = 0;
   ZMQ_Ctx * this_idx1 = obj_type_ZMQ_Ctx_check(L,1);
   int type_idx2 = luaL_checkinteger(L,2);
+  int sock_idx1_flags = OBJ_UDATA_FLAG_OWN;
   ZMQ_Socket sock_idx1;
   ZMQ_Error err_idx2 = 0;
 	sock_idx1 = zmq_socket(this_idx1, type_idx2);
@@ -1099,7 +1148,7 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
   if(is_error) {
     lua_pushnil(L);
   } else {
-    obj_type_ZMQ_Socket_push(L, sock_idx1, OBJ_UDATA_FLAG_OWN);
+    obj_type_ZMQ_Socket_push(L, sock_idx1, sock_idx1_flags);
   }
   error_code__ZMQ_Error__push(L, err_idx2);
   return 2;
@@ -1108,9 +1157,9 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
 /* method: close */
 static int ZMQ_Socket__close__meth(lua_State *L) {
   int is_error = 0;
-  int flags = 0;
-  ZMQ_Socket * this_idx1 = obj_type_ZMQ_Socket_delete(L,1,&(flags));
-  if(!(flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
+  int this_idx1_flags = 0;
+  ZMQ_Socket * this_idx1 = obj_type_ZMQ_Socket_delete(L,1,&(this_idx1_flags));
+  if(!(this_idx1_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
   ZMQ_Error ret_idx1 = 0;
   ret_idx1 = zmq_close(this_idx1);
   is_error = (0 != ret_idx1);
@@ -1390,7 +1439,7 @@ static const luaL_reg obj_ZMQ_Ctx_methods[] = {
 };
 
 static const luaL_reg obj_ZMQ_Ctx_metas[] = {
-  {"__gc", ZMQ_Ctx__term__meth},
+  {"__gc", ZMQ_Ctx__delete__meth},
   {"__tostring", obj_udata_default_tostring},
   {"__eq", obj_udata_default_equal},
   {NULL, NULL}
