@@ -107,6 +107,9 @@ c_function "device" {
 		{ "int", "device", "ZMQ_Socket", "insock", "ZMQ_Socket", "outsock" },
 },
 
+ffi_files {
+"src/zmq_ffi.nobj.lua",
+},
 subfiles {
 "src/zmq_ffi.nobj.lua",
 "src/error.nobj.lua",
