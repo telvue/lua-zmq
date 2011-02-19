@@ -123,7 +123,6 @@ int zmq_device (int device, void * insocket, void* outsocket);
 
 ]]
 
-require"utils"
 local c_zmq = ffi.load"zmq"
 
 module(...)
