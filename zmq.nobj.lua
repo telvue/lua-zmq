@@ -7,6 +7,10 @@ luajit_ffi = true,
 
 include "zmq.h",
 
+c_source[[
+#define OBJ_UDATA_CTX_SHOULD_FREE (OBJ_UDATA_LAST_FLAG << 1)
+]],
+
 --
 -- Module constants
 --
@@ -85,12 +89,17 @@ c_function "version" {
 ]]
 },
 c_function "init" {
-	var_in{ "int", "io_threads" },
+	var_in{ "<any>", "io_threads" },
 	var_out{ "ZMQ_Ctx", "ctx", own = true },
 	var_out{ "ZMQ_Error", "err"},
 	c_source[[
-	${ctx} = zmq_init(${io_threads});
-	if(${ctx} == NULL) ${err} = -1;
+	if(lua_isnumber(L, ${io_threads::idx})) {
+		${ctx} = zmq_init(lua_tointeger(L,${io_threads::idx}));
+		if(${ctx} == NULL) ${err} = -1;
+		${ctx}_flags |= OBJ_UDATA_CTX_SHOULD_FREE;
+	} else {
+		${ctx} = lua_touserdata(L, ${io_threads::idx});
+	}
 ]]
 },
 c_function "device" {

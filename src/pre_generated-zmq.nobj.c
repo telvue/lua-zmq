@@ -686,14 +686,17 @@ function sock_mt:close()\n\
 	local sock = self.sock\n\
 	-- make sure socket is still valid.\n\
 	if not sock then return end\n\
-	-- close zmq socket.\n\
-	local ret = C.zmq_close(sock)\n\
 	-- mark this socket as closed.\n\
 	self.sock = nil\n\
-	if ret ~= 0 then\n\
+	-- close zmq socket.\n\
+	if C.zmq_close(sock) ~= 0 then\n\
 		return zmq_error()\n\
 	end\n\
 	return true\n\
+end\n\
+\n\
+local function sock__gc(self)\n\
+	self:close()\n\
 end\n\
 \n\
 local option_types = {\n\
@@ -849,10 +852,20 @@ local ctx_mt = {}\n\
 ctx_mt.__index = ctx_mt\n\
 \n\
 function ctx_mt:term()\n\
-	if C.zmq_term(self.ctx) ~= 0 then\n\
+	-- get the true self\n\
+	self=getmetatable(self)\n\
+	local ctx = self.ctx\n\
+	self.ctx = nil\n\
+	-- make sure context is valid.\n\
+	if not ctx then return end\n\
+	if C.zmq_term(ctx) ~= 0 then\n\
 		return zmq_error()\n\
 	end\n\
 	return true\n\
+end\n\
+\n\
+function ctx_mt:lightuserdata()\n\
+	return self.ctx\n\
 end\n\
 \n\
 function ctx_mt:socket(sock_type)\n\
@@ -865,18 +878,40 @@ function ctx_mt:socket(sock_type)\n\
 	local meta=getmetatable(self)\n\
 	meta.__index = meta\n\
 	meta.sock = sock\n\
-	meta.__gc = function() self:close() end\n\
+	meta.__gc = sock__gc\n\
 	setmetatable(meta, sock_mt)\n\
 	return self\n\
 end\n\
 \n\
-function init(io_threads)\n\
-	print(\"ZMQ using FFI interface.\")\n\
-	local ctx = C.zmq_init(io_threads)\n\
-	if not ctx then\n\
-		return zmq_error()\n\
+local function ctx__gc(self)\n\
+	if self.should_free then\n\
+		self:term()\n\
 	end\n\
-	return setmetatable({ ctx = ctx }, ctx_mt)\n\
+end\n\
+\n\
+function init(io_threads)\n\
+	local should_free = true\n\
+	local ctx\n\
+	print(\"ZMQ using FFI interface.\")\n\
+	if type(io_threads) == 'number' then\n\
+		ctx = C.zmq_init(io_threads)\n\
+		if not ctx then\n\
+			return zmq_error()\n\
+		end\n\
+	else\n\
+		should_free = false\n\
+		-- should be lightuserdata or cdata<void *>\n\
+		ctx = io_threads\n\
+	end\n\
+	-- use a wrapper newproxy for __gc support\n\
+	local self=newproxy(true)\n\
+	local meta=getmetatable(self)\n\
+	meta.__index = meta\n\
+	meta.ctx = ctx\n\
+	meta.should_free = should_free\n\
+	meta.__gc = ctx__gc\n\
+	setmetatable(meta, ctx_mt)\n\
+	return self\n\
 end\n\
 \n\
 \n\
@@ -1038,6 +1073,16 @@ static int ZMQ_Ctx__term__meth(lua_State *L) {
     lua_pushnil(L);
   }
   return 2;
+}
+
+/* method: lightuserdata */
+static int ZMQ_Ctx__lightuserdata__meth(lua_State *L) {
+  ZMQ_Ctx * this_idx1 = obj_type_ZMQ_Ctx_check(L,1);
+  void * ptr_idx1 = NULL;
+	ptr_idx1 = this_idx1;
+
+  lua_pushlightuserdata(L, ptr_idx1);
+  return 1;
 }
 
 /* method: socket */
@@ -1339,6 +1384,7 @@ static const luaL_reg obj_ZMQ_Ctx_pub_funcs[] = {
 
 static const luaL_reg obj_ZMQ_Ctx_methods[] = {
   {"term", ZMQ_Ctx__term__meth},
+  {"lightuserdata", ZMQ_Ctx__lightuserdata__meth},
   {"socket", ZMQ_Ctx__socket__meth},
   {NULL, NULL}
 };

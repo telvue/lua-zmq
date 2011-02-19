@@ -22,8 +22,21 @@ object "ZMQ_Ctx" {
 	c_source [[
 typedef void * ZMQ_Ctx;
 ]],
-	destructor "term" {
+	destructor {
+		c_source[[
+	if(${this}_flags & OBJ_UDATA_CTX_SHOULD_FREE) {
+		zmq_term(${this});
+	}
+]]
+	},
+	method "term" {
 		c_call "ZMQ_Error"  "zmq_term" {}
+	},
+	method "lightuserdata" {
+		var_out{ "void *", "ptr" },
+		c_source[[
+	${ptr} = ${this};
+]]
 	},
 	method "socket" {
 		var_in{ "int", "type" },
