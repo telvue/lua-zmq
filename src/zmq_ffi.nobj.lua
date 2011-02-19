@@ -14,6 +14,7 @@ if disable_ffi then
 end
 
 local setmetatable = setmetatable
+local getmetatable = getmetatable
 local print = print
 local pairs = pairs
 local error = error
@@ -21,17 +22,7 @@ local type = type
 local assert = assert
 local tostring = tostring
 local tonumber = tonumber
-
-local z_SUBSCRIBE = zmq.SUBSCRIBE
-local z_UNSUBSCRIBE = zmq.UNSUBSCRIBE
-local z_IDENTITY = zmq.IDENTITY
-local z_NOBLOCK = zmq.NOBLOCK
-local z_RCVMORE = zmq.RCVMORE
-local z_SNDMORE = zmq.SNDMORE
-local z_EVENTS = zmq.EVENTS
-local z_POLLIN = zmq.POLLIN
-local z_POLLOUT = zmq.POLLOUT
-local z_POLLIN_OUT = z_POLLIN + z_POLLOUT
+local newproxy = newproxy
 
 ffi.cdef[[
 void zmq_version (int *major, int *minor, int *patch);
@@ -73,10 +64,9 @@ int zmq_device (int device, void * insocket, void* outsocket);
 
 ]]
 
-require"utils"
 local C = ffi.load"zmq"
 
---module(...)
+-- simulate: module(...)
 zmq._M = zmq
 setfenv(1, zmq)
 
@@ -102,16 +92,15 @@ end
 local sock_mt = {}
 sock_mt.__index = sock_mt
 
-local function new_socket(ctx, sock_type)
-	local sock = C.zmq_socket(ctx, sock_type)
-	if not sock then
-		return zmq_error()
-	end
-	return setmetatable({ sock = sock }, sock_mt)
-end
-
 function sock_mt:close()
-	local ret = C.zmq_close(self.sock)
+	-- get the true self
+	self=getmetatable(self)
+	local sock = self.sock
+	-- make sure socket is still valid.
+	if not sock then return end
+	-- close zmq socket.
+	local ret = C.zmq_close(sock)
+	-- mark this socket as closed.
 	self.sock = nil
 	if ret ~= 0 then
 		return zmq_error()
@@ -279,7 +268,18 @@ function ctx_mt:term()
 end
 
 function ctx_mt:socket(sock_type)
-	return new_socket(self.ctx, sock_type)
+	local sock = C.zmq_socket(self.ctx, sock_type)
+	if not sock then
+		return zmq_error()
+	end
+	-- use a wrapper newproxy for __gc support
+	local self=newproxy(true)
+	local meta=getmetatable(self)
+	meta.__index = meta
+	meta.sock = sock
+	meta.__gc = function() self:close() end
+	setmetatable(meta, sock_mt)
+	return self
 end
 
 function init(io_threads)
