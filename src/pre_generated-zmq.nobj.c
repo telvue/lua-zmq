@@ -602,6 +602,7 @@ if disable_ffi then\n\
 end\n\
 \n\
 local setmetatable = setmetatable\n\
+local getmetatable = getmetatable\n\
 local print = print\n\
 local pairs = pairs\n\
 local error = error\n\
@@ -609,17 +610,7 @@ local type = type\n\
 local assert = assert\n\
 local tostring = tostring\n\
 local tonumber = tonumber\n\
-\n\
-local z_SUBSCRIBE = zmq.SUBSCRIBE\n\
-local z_UNSUBSCRIBE = zmq.UNSUBSCRIBE\n\
-local z_IDENTITY = zmq.IDENTITY\n\
-local z_NOBLOCK = zmq.NOBLOCK\n\
-local z_RCVMORE = zmq.RCVMORE\n\
-local z_SNDMORE = zmq.SNDMORE\n\
-local z_EVENTS = zmq.EVENTS\n\
-local z_POLLIN = zmq.POLLIN\n\
-local z_POLLOUT = zmq.POLLOUT\n\
-local z_POLLIN_OUT = z_POLLIN + z_POLLOUT\n\
+local newproxy = newproxy\n\
 \n\
 ffi.cdef[[\n\
 void zmq_version (int *major, int *minor, int *patch);\n\
@@ -661,10 +652,9 @@ int zmq_device (int device, void * insocket, void* outsocket);\n\
 \n\
 ]]\n\
 \n\
-require\"utils\"\n\
 local C = ffi.load\"zmq\"\n\
 \n\
---module(...)\n\
+-- simulate: module(...)\n\
 zmq._M = zmq\n\
 setfenv(1, zmq)\n\
 \n\
@@ -690,16 +680,15 @@ end\n\
 local sock_mt = {}\n\
 sock_mt.__index = sock_mt\n\
 \n\
-local function new_socket(ctx, sock_type)\n\
-	local sock = C.zmq_socket(ctx, sock_type)\n\
-	if not sock then\n\
-		return zmq_error()\n\
-	end\n\
-	return setmetatable({ sock = sock }, sock_mt)\n\
-end\n\
-\n\
 function sock_mt:close()\n\
-	local ret = C.zmq_close(self.sock)\n\
+	-- get the true self\n\
+	self=getmetatable(self)\n\
+	local sock = self.sock\n\
+	-- make sure socket is still valid.\n\
+	if not sock then return end\n\
+	-- close zmq socket.\n\
+	local ret = C.zmq_close(sock)\n\
+	-- mark this socket as closed.\n\
 	self.sock = nil\n\
 	if ret ~= 0 then\n\
 		return zmq_error()\n\
@@ -867,7 +856,18 @@ function ctx_mt:term()\n\
 end\n\
 \n\
 function ctx_mt:socket(sock_type)\n\
-	return new_socket(self.ctx, sock_type)\n\
+	local sock = C.zmq_socket(self.ctx, sock_type)\n\
+	if not sock then\n\
+		return zmq_error()\n\
+	end\n\
+	-- use a wrapper newproxy for __gc support\n\
+	local self=newproxy(true)\n\
+	local meta=getmetatable(self)\n\
+	meta.__index = meta\n\
+	meta.sock = sock\n\
+	meta.__gc = function() self:close() end\n\
+	setmetatable(meta, sock_mt)\n\
+	return self\n\
 end\n\
 \n\
 function init(io_threads)\n\
