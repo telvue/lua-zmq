@@ -5,7 +5,7 @@ source = {
 }
 description = {
    summary = "Lua bindings to zeromq2, with LuaJIT2 FFI support.",
-   homepage = "http://github.com/iamaleksey/lua-zmq",
+   homepage = "http://github.com/Neopallium/lua-zmq",
    license = "MIT/X11"
 }
 dependencies = {
