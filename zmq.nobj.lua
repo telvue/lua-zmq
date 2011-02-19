@@ -3,6 +3,7 @@ c_module "zmq" {
 -- module settings.
 use_globals = false,
 hide_meta_info = true,
+luajit_ffi = true,
 
 include "zmq.h",
 
@@ -68,11 +69,19 @@ const "QUEUE"					{ 3 },
 -- Module static functions
 --
 c_function "version" {
-	var_out{ "int", "major" },
-	var_out{ "int", "minor" },
-	var_out{ "int", "patch" },
+	var_out{ "<any>", "ver" },
 	c_source[[
-	zmq_version(&(${major}), &(${minor}), &(${patch}));
+	int major, minor, patch;
+	zmq_version(&(major), &(minor), &(patch));
+
+	/* return version as a table: { major, minor, patch } */
+	lua_createtable(L, 3, 0);
+	lua_pushinteger(L, major);
+	lua_rawseti(L, -2, 1);
+	lua_pushinteger(L, minor);
+	lua_rawseti(L, -2, 2);
+	lua_pushinteger(L, patch);
+	lua_rawseti(L, -2, 3);
 ]]
 },
 c_function "init" {
@@ -85,13 +94,15 @@ c_function "init" {
 ]]
 },
 c_function "device" {
-	c_call "ZMQ_Error" "zmq_device" { "int", "device", "ZMQ_Socket", "insock", "ZMQ_Socket", "outsock" },
+	c_call "ZMQ_Error" "zmq_device"
+		{ "int", "device", "ZMQ_Socket", "insock", "ZMQ_Socket", "outsock" },
 },
 
 subfiles {
-"error.nobj.lua",
-"ctx.nobj.lua",
-"socket.nobj.lua",
+"src/zmq_ffi.nobj.lua",
+"src/error.nobj.lua",
+"src/ctx.nobj.lua",
+"src/socket.nobj.lua",
 },
 }
 

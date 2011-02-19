@@ -1,10 +1,10 @@
 package = "lua-zmq"
-version = "scm-0"
+version = "scm-1"
 source = {
-   url = "git://github.com/iamaleksey/lua-zmq.git"
+   url = "git://github.com/Neopallium/lua-zmq.git"
 }
 description = {
-   summary = "Lua bindings to zeromq2",
+   summary = "Lua bindings to zeromq2, with LuaJIT2 FFI support.",
    homepage = "http://github.com/iamaleksey/lua-zmq",
    license = "MIT/X11"
 }
@@ -15,7 +15,7 @@ build = {
    type = "builtin",
    modules = {
      zmq = {
-       sources = {"zmq.c"},
+       sources = {"src/pre_generated-zmq.nobj.c"},
        libraries = {"zmq"}
      }
    }

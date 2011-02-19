@@ -18,18 +18,24 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
-require("zmq")
-local socket = require"socket"
-local time = socket.gettime
-
 if not arg[3] then
-    print("usage: lua remote_lat.lua <connect-to> <message-size> <roundtrip-count>")
+    print("usage: lua remote_lat.lua <connect-to> <message-size> <roundtrip-count> [<zmq-module>]")
     os.exit()
 end
 
 local connect_to = arg[1]
 local message_size = tonumber(arg[2])
 local roundtrip_count = tonumber(arg[3])
+local mod = arg[4] or "zmq"
+if mod == 'disable_ffi' then
+	disable_ffi = true
+	mod = 'zmq'
+end
+
+local zmq = require(mod)
+
+local socket = require"socket"
+local time = socket.gettime
 
 local ctx = zmq.init(1)
 local s = ctx:socket(zmq.REQ)
@@ -43,6 +49,7 @@ local start_time = time()
 for i = 1, roundtrip_count do
     s:send(msg)
     msg = s:recv()
+		assert(#msg == message_size, "Invalid message size")
 end
 
 local end_time = time()
