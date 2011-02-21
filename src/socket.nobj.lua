@@ -19,6 +19,7 @@
 -- THE SOFTWARE.
 
 object "ZMQ_Socket" {
+	error_on_null = "get_zmq_strerror()",
 	c_source [[
 /* detect zmq version >= 2.1.0 */
 #define VERSION_2_1 0
@@ -78,13 +79,13 @@ static const int opt_types[] = {
 ]],
 
 	destructor "close" {
-		c_call "ZMQ_Error"  "zmq_close" {}
+		c_method_call "ZMQ_Error"  "zmq_close" {}
 	},
 	method "bind" {
-		c_call "ZMQ_Error"  "zmq_bind" { "const char *", "addr" }
+		c_method_call "ZMQ_Error"  "zmq_bind" { "const char *", "addr" }
 	},
 	method "connect" {
-		c_call "ZMQ_Error"  "zmq_connect" { "const char *", "addr" }
+		c_method_call "ZMQ_Error"  "zmq_connect" { "const char *", "addr" }
 	},
 	method "setopt" {
 		var_in{ "uint32_t", "opt" },
@@ -220,9 +221,17 @@ static const int opt_types[] = {
 	lua_pushnil(L);
 ]]
 	},
+	method "events" {
+		var_out{ "uint32_t", "events" },
+		var_out{ "ZMQ_Error", "err" },
+		c_source[[
+	size_t val_len = sizeof(${events});
+	${err} = zmq_getsockopt(${this}, ZMQ_EVENTS, &(${events}), &val_len);
+]]
+	},
 	method "send" {
 		var_in{ "const char *", "data" },
-		var_in{ "int", "flags", is_optional = true },
+		var_in{ "int", "flags?" },
 		var_out{ "ZMQ_Error", "err" },
 		c_source[[
 	zmq_msg_t msg;

@@ -19,6 +19,7 @@
 -- THE SOFTWARE.
 
 object "ZMQ_Ctx" {
+	error_on_null = "get_zmq_strerror()",
 	c_source [[
 typedef void * ZMQ_Ctx;
 ]],
@@ -30,7 +31,7 @@ typedef void * ZMQ_Ctx;
 ]]
 	},
 	method "term" {
-		c_call "ZMQ_Error"  "zmq_term" {}
+		c_method_call "ZMQ_Error"  "zmq_term" {}
 	},
 	method "lightuserdata" {
 		var_out{ "void *", "ptr" },
@@ -39,13 +40,7 @@ typedef void * ZMQ_Ctx;
 ]]
 	},
 	method "socket" {
-		var_in{ "int", "type" },
-		var_out{ "ZMQ_Socket", "sock", own = true },
-		var_out{ "ZMQ_Error", "err"},
-		c_source[[
-	${sock} = zmq_socket(${this}, ${type});
-	if(${sock} == NULL) ${err} = -1;
-]]
+		c_method_call "!ZMQ_Socket"  "zmq_socket" { "int", "type"}
 	},
 }
 

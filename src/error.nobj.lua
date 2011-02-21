@@ -24,18 +24,7 @@ error_code "ZMQ_Error" "int" {
 	default = "0",
 	c_source [[
 	if(err != 0) {
-		err = zmq_errno();
-		switch(err) {
-		case EAGAIN:
-			err_str = "timeout";
-			break;
-		case ETERM:
-			err_str = "closed";
-			break;
-		default:
-			err_str = zmq_strerror(err);
-			break;
-		}
+		err_str = get_zmq_strerror();
 	}
 ]],
 }
