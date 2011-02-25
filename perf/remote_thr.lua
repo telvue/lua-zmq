@@ -38,11 +38,12 @@ local ctx = zmq.init(1)
 local s = ctx:socket(zmq.PUB)
 s:connect(connect_to)
 
-local msg = ""
-for i = 1, message_size do msg = msg .. "0" end
+local data = ("0"):rep(message_size)
+local msg = zmq.zmq_msg_t.init_size(message_size)
 
 for i = 1, message_count do
-  s:send(msg)
+	msg:set_data(data)
+	assert(s:send_msg(msg))
 end
 
 --os.execute("sleep " .. 10)

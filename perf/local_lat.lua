@@ -38,12 +38,12 @@ local ctx = zmq.init(1)
 local s = ctx:socket(zmq.REP)
 s:bind(bind_to)
 
-local msg
+local msg = zmq.zmq_msg_t()
 
 for i = 1, roundtrip_count do
-    msg = s:recv()
-		assert(#msg == message_size, "Invalid message size")
-    s:send(msg)
+	assert(s:recv_msg(msg))
+	assert(msg:size() == message_size, "Invalid message size")
+	assert(s:send_msg(msg))
 end
 
 s:close()

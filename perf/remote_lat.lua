@@ -41,15 +41,15 @@ local ctx = zmq.init(1)
 local s = ctx:socket(zmq.REQ)
 s:connect(connect_to)
 
-local msg = ""
-for i = 1, message_size do msg = msg .. "0" end
+local data = ("0"):rep(message_size)
+local msg = zmq.zmq_msg_t.init_size(message_size)
 
 local start_time = time()
 
 for i = 1, roundtrip_count do
-    s:send(msg)
-    msg = s:recv()
-		assert(#msg == message_size, "Invalid message size")
+	assert(s:send_msg(msg))
+	assert(s:recv_msg(msg))
+	assert(msg:size() == message_size, "Invalid message size")
 end
 
 local end_time = time()

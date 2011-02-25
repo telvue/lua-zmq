@@ -20,12 +20,16 @@
 
 object "ZMQ_Ctx" {
 	error_on_null = "get_zmq_strerror()",
+	ffi_cdef [[
+typedef void * ZMQ_Ctx;
+]],
+
 	c_source [[
 typedef void * ZMQ_Ctx;
 ]],
 	destructor {
 		c_source[[
-	if(${this}_flags & OBJ_UDATA_CTX_SHOULD_FREE) {
+	if(${this_flags} & OBJ_UDATA_CTX_SHOULD_FREE) {
 		zmq_term(${this});
 	}
 ]]

@@ -19,13 +19,26 @@
 -- THE SOFTWARE.
 
 -- Convert ZMQ Error codes into strings.
+--
+-- This is an error code wrapper object, it converts C-style 'int' return error code
+-- into Lua-style 'nil, "Error message"' return values.
+--
 error_code "ZMQ_Error" "int" {
+	ffi_cdef[[
+typedef int ZMQ_Error;
+]],
 	is_error_check = function(rec) return "(0 != ${" .. rec.name .. "})" end,
+	ffi_is_error_check = function(rec) return "(0 ~= ${" .. rec.name .. "})" end,
 	default = "0",
 	c_source [[
 	if(err != 0) {
 		err_str = get_zmq_strerror();
 	}
+]],
+	ffi_source [[
+	if(0 ~= err) then
+		err_str = get_zmq_strerror();
+	end
 ]],
 }
 

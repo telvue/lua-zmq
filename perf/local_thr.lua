@@ -42,13 +42,15 @@ local s = ctx:socket(zmq.SUB)
 s:setopt(zmq.SUBSCRIBE, "");
 s:bind(bind_to)
 
-local msg = s:recv()
+local msg
+msg = zmq.zmq_msg_t()
+assert(s:recv_msg(msg))
 
 local start_time = time()
 
 for i = 1, message_count - 1 do
-    msg = s:recv()
-		assert(#msg == message_size, "Invalid message size")
+	assert(s:recv_msg(msg))
+	assert(msg:size() == message_size, "Invalid message size")
 end
 
 local end_time = time()

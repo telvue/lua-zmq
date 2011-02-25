@@ -20,6 +20,9 @@
 
 object "ZMQ_Socket" {
 	error_on_null = "get_zmq_strerror()",
+	ffi_cdef[[
+typedef void * ZMQ_Socket;
+]],
 	c_source [[
 /* detect zmq version >= 2.1.0 */
 #define VERSION_2_1 0
@@ -87,6 +90,10 @@ static const int opt_types[] = {
 	method "connect" {
 		c_method_call "ZMQ_Error"  "zmq_connect" { "const char *", "addr" }
 	},
+	ffi_cdef[[
+int zmq_setsockopt (void *s, int option, const void *optval, size_t optvallen);
+int zmq_getsockopt (void *s, int option, void *optval, size_t *optvallen);
+]],
 	method "setopt" {
 		var_in{ "uint32_t", "opt" },
 		var_in{ "<any>", "val" },
@@ -221,34 +228,75 @@ static const int opt_types[] = {
 	lua_pushnil(L);
 ]]
 	},
+	ffi_source[[
+-- temp. values for 'events' function.
+local events_tmp = ffi.new('uint32_t[1]', 0)
+local events_tmp_size = ffi.sizeof('uint32_t')
+local events_tmp_len = ffi.new('size_t[1]', events_tmp_size)
+local ZMQ_EVENTS = _M.EVENTS
+]],
 	method "events" {
 		var_out{ "uint32_t", "events" },
 		var_out{ "ZMQ_Error", "err" },
 		c_source[[
 	size_t val_len = sizeof(${events});
 	${err} = zmq_getsockopt(${this}, ZMQ_EVENTS, &(${events}), &val_len);
-]]
+]],
+		ffi_source[[
+	events_tmp_len[0] = events_tmp_size
+	${err} = C.zmq_getsockopt(${this}, ZMQ_EVENTS, events_tmp, events_tmp_len);
+	${events} = events_tmp[0]
+]],
 	},
+	--
+	-- zmq_send
+	--
+	method "send_msg" {
+		c_method_call "ZMQ_Error" "zmq_send" { "zmq_msg_t *", "msg", "int", "flags?" },
+	},
+	-- create helper function for `zmq_send`
+	c_source[[
+static ZMQ_Error simple_zmq_send(ZMQ_Socket sock, const char *data, size_t data_len, int flags) {
+	ZMQ_Error err;
+	zmq_msg_t msg;
+	/* initialize message */
+	err = zmq_msg_init_size(&msg, data_len);
+	if(0 == err) {
+		/* fill message */
+		memcpy(zmq_msg_data(&msg), data, data_len);
+		/* send message */
+		err = zmq_send(sock, &msg, flags);
+		/* close message */
+		zmq_msg_close(&msg);
+	}
+	return err;
+}
+]],
+	-- export helper function.
+	ffi_export_function "ZMQ_Error" "simple_zmq_send"
+		"(ZMQ_Socket sock, const char *data, size_t data_len, int flags)",
 	method "send" {
 		var_in{ "const char *", "data" },
 		var_in{ "int", "flags?" },
 		var_out{ "ZMQ_Error", "err" },
 		c_source[[
-	zmq_msg_t msg;
-	/* initialize message */
-	${err} = zmq_msg_init_size(&msg, ${data}_len);
-	if(0 == ${err}) {
-		/* fill message */
-		memcpy(zmq_msg_data(&msg), ${data}, ${data}_len);
-		/* send message */
-		${err} = zmq_send(${this}, &msg, ${flags});
-		/* close message */
-		zmq_msg_close(&msg);
-	}
-]]
+	${err} = simple_zmq_send(${this}, ${data}, ${data_len}, ${flags});
+]],
+		ffi_source[[
+	${err} = simple_zmq_send(${this}, ${data}, ${data_len}, ${flags});
+]],
 	},
+	--
+	-- zmq_recv
+	--
+	method "recv_msg" {
+		c_method_call "ZMQ_Error" "zmq_recv" { "zmq_msg_t *", "msg", "int", "flags?" },
+	},
+	ffi_source[[
+local tmp_msg = ffi.new('zmq_msg_t')
+]],
 	method "recv" {
-		var_in{ "int", "flags", is_optional = true },
+		var_in{ "int", "flags?" },
 		var_out{ "const char *", "data", has_length = true },
 		var_out{ "ZMQ_Error", "err" },
 		c_source[[
@@ -260,14 +308,34 @@ static const int opt_types[] = {
 		${err} = zmq_recv(${this}, &msg, ${flags});
 		if(0 == ${err}) {
 			${data} = zmq_msg_data(&msg);
-			${data}_len = zmq_msg_size(&msg);
+			${data_len} = zmq_msg_size(&msg);
 		}
 	}
 ]],
 		c_source "post" [[
 	/* close message */
 	zmq_msg_close(&msg);
-]]
+]],
+		ffi_source[[
+	local msg = tmp_msg
+	-- initialize blank message.
+	if C.zmq_msg_init(msg) < 0 then
+		return nil, get_zmq_strerror()
+	end
+
+	-- receive message
+	${err} = C.zmq_recv(${this}, msg, ${flags})
+	if 0 == ${err} then
+		local data = ffi.string(C.zmq_msg_data(msg), C.zmq_msg_size(msg))
+		-- close message
+		C.zmq_msg_close(msg)
+		return data
+	end
+]],
+		ffi_source "ffi_post" [[
+	-- close message
+	C.zmq_msg_close(msg)
+]],
 	},
 }
 
