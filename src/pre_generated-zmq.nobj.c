@@ -785,7 +785,6 @@ local function obj_udata_luapush_weak(obj, type_mt, obj_type, flags)\n\
 	return ud_obj\n\
 end\n\
 \n\
-require\"utils\"\n\
 local function obj_simple_udata_luacheck(ud_obj, type_mt)\n\
 	local obj_mt = d_getmetatable(ud_obj)\n\
 	if obj_mt == type_mt then\n\
