@@ -7,7 +7,7 @@ Installation
 ============
 
 With LuaRocks 2.0.4.1:
-	$ luarocks install https://github.com/Neopallium/lua-zmq/raw/master/rockspecs/lua-zmq-scm-1.rockspec
+	$ sudo luarocks install https://github.com/Neopallium/lua-zmq/raw/master/rockspecs/lua-zmq-scm-1.rockspec
 
 With CMake:
 	$ git clone git://github.com/Neopallium/lua-zmq.git
