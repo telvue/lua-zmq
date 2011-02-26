@@ -56,60 +56,60 @@ end
 -- Module constants
 --
 constants {
-MAX_VSM_SIZE	 = 30,
+MAX_VSM_SIZE   = 30,
 
 -- message types
-DELIMITER			 = 31,
-VSM						 = 32,
+DELIMITER      = 31,
+VSM            = 32,
 
 -- message flags
-MSG_MORE			 = 1,
-MSG_SHARED		 = 128,
+MSG_MORE       = 1,
+MSG_SHARED     = 128,
 
 -- socket types
-PAIR					 = 0,
-PUB						 = 1,
-SUB						 = 2,
-REQ						 = 3,
-REP						 = 4,
-XREQ					 = 5,
-XREP					 = 6,
-PULL					 = 7,
-PUSH					 = 8,
+PAIR           = 0,
+PUB            = 1,
+SUB            = 2,
+REQ            = 3,
+REP            = 4,
+XREQ           = 5,
+XREP           = 6,
+PULL           = 7,
+PUSH           = 8,
 
 -- socket options
-HWM						 = 1,
-SWAP					 = 3,
-AFFINITY			 = 4,
-IDENTITY			 = 5,
-SUBSCRIBE			 = 6,
-UNSUBSCRIBE		 = 7,
-RATE					 = 8,
-RECOVERY_IVL	 = 9,
-MCAST_LOOP		 = 10,
-SNDBUF				 = 11,
-RCVBUF				 = 12,
-RCVMORE				 = 13,
-FD						 = 14,
-EVENTS				 = 15,
-TYPE					 = 16,
-LINGER				 = 17,
-RECONNECT_IVL	 = 18,
-BACKLOG				 = 19,
+HWM            = 1,
+SWAP           = 3,
+AFFINITY       = 4,
+IDENTITY       = 5,
+SUBSCRIBE      = 6,
+UNSUBSCRIBE    = 7,
+RATE           = 8,
+RECOVERY_IVL   = 9,
+MCAST_LOOP     = 10,
+SNDBUF         = 11,
+RCVBUF         = 12,
+RCVMORE        = 13,
+FD             = 14,
+EVENTS         = 15,
+TYPE           = 16,
+LINGER         = 17,
+RECONNECT_IVL  = 18,
+BACKLOG        = 19,
 
 -- send/recv flags
-NOBLOCK				 = 1,
-SNDMORE				 = 2,
+NOBLOCK        = 1,
+SNDMORE        = 2,
 
 -- poll events
-POLLIN				 = 1,
-POLLOUT				 = 2,
-POLLERR				 = 4,
+POLLIN         = 1,
+POLLOUT        = 2,
+POLLERR        = 4,
 
 -- devices
-STREAMER			 = 1,
-FORWARDER			 = 2,
-QUEUE					 = 3,
+STREAMER       = 1,
+FORWARDER      = 2,
+QUEUE          = 3,
 },
 
 

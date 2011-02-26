@@ -65,4 +65,4 @@ API
 ===
 
 See [API.md](http://github.com/iamaleksey/lua-zmq/blob/master/API.md) and
-[ØMQ docs](http://www.zeromq.org/area:docs-v20).
+[ØMQ docs](http://api.zero.mq/2-1-1:_start).
