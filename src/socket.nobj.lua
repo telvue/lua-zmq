@@ -54,27 +54,28 @@ typedef int socket_t;
 #define OPT_TYPE_FD			6
 
 static const int opt_types[] = {
-	OPT_TYPE_NONE,		/* unused */
-	OPT_TYPE_UINT64,	/* ZMQ_HWM */
-	OPT_TYPE_INT64,		/* ZMQ_SWAP */
-	OPT_TYPE_UINT64,	/* ZMQ_AFFINITY */
-	OPT_TYPE_STR,			/* ZMQ_IDENTITY */
-	OPT_TYPE_STR,			/* ZMQ_SUBSCRIBE */
-	OPT_TYPE_STR,			/* ZMQ_UNSUBSCRIBE */
-	OPT_TYPE_INT64,		/* ZMQ_RATE */
-	OPT_TYPE_INT64,		/* ZMQ_RECOVERY_IVL */
-	OPT_TYPE_INT64,		/* ZMQ_MCAST_LOOP */
-	OPT_TYPE_UINT64,	/* ZMQ_SNDBUF */
-	OPT_TYPE_UINT64,	/* ZMQ_RCVBUF */
-	OPT_TYPE_INT64,		/* ZMQ_RCVMORE */
+	OPT_TYPE_NONE,		/*  0 unused */
+	OPT_TYPE_UINT64,	/*  1 ZMQ_HWM */
+	OPT_TYPE_NONE,		/*  2 unused */
+	OPT_TYPE_INT64,		/*  3 ZMQ_SWAP */
+	OPT_TYPE_UINT64,	/*  4 ZMQ_AFFINITY */
+	OPT_TYPE_STR,			/*  5 ZMQ_IDENTITY */
+	OPT_TYPE_STR,			/*  6 ZMQ_SUBSCRIBE */
+	OPT_TYPE_STR,			/*  7 ZMQ_UNSUBSCRIBE */
+	OPT_TYPE_INT64,		/*  8 ZMQ_RATE */
+	OPT_TYPE_INT64,		/*  9 ZMQ_RECOVERY_IVL */
+	OPT_TYPE_INT64,		/* 10 ZMQ_MCAST_LOOP */
+	OPT_TYPE_UINT64,	/* 11 ZMQ_SNDBUF */
+	OPT_TYPE_UINT64,	/* 12 ZMQ_RCVBUF */
+	OPT_TYPE_INT64,		/* 13 ZMQ_RCVMORE */
 
 #if VERSION_2_1
-	OPT_TYPE_FD,			/* ZMQ_FD */
-	OPT_TYPE_UINT32,	/* ZMQ_EVENTS */
-	OPT_TYPE_INT,			/* ZMQ_TYPE */
-	OPT_TYPE_INT,			/* ZMQ_LINGER */
-	OPT_TYPE_INT,			/* ZMQ_RECONNECT_IVL */
-	OPT_TYPE_INT,			/* ZMQ_BACKLOG */
+	OPT_TYPE_FD,			/* 14 ZMQ_FD */
+	OPT_TYPE_UINT32,	/* 15 ZMQ_EVENTS */
+	OPT_TYPE_INT,			/* 16 ZMQ_TYPE */
+	OPT_TYPE_INT,			/* 17 ZMQ_LINGER */
+	OPT_TYPE_INT,			/* 18 ZMQ_RECONNECT_IVL */
+	OPT_TYPE_INT,			/* 19 ZMQ_BACKLOG */
 #endif
 };
 #define MAX_OPTS ZMQ_BACKLOG
@@ -93,6 +94,37 @@ static const int opt_types[] = {
 	ffi_cdef[[
 int zmq_setsockopt (void *s, int option, const void *optval, size_t optvallen);
 int zmq_getsockopt (void *s, int option, void *optval, size_t *optvallen);
+]],
+	ffi_source[[
+local option_types = {
+[zmq.HWM] = 'uint64_t[1]',
+[zmq.SWAP] = 'int64_t[1]',
+[zmq.AFFINITY] = 'uint64_t[1]',
+[zmq.IDENTITY] = 'string',
+[zmq.SUBSCRIBE] = 'string',
+[zmq.UNSUBSCRIBE] = 'string',
+[zmq.RATE] = 'int64_t[1]',
+[zmq.RECOVERY_IVL] = 'int64_t[1]',
+[zmq.MCAST_LOOP] = 'int64_t[1]',
+[zmq.SNDBUF] = 'uint64_t[1]',
+[zmq.RCVBUF] = 'uint64_t[1]',
+[zmq.RCVMORE] = 'int64_t[1]',
+[zmq.FD] = 'int[1]',
+[zmq.EVENTS] = 'uint32_t[1]',
+[zmq.TYPE] = 'int[1]',
+[zmq.LINGER] = 'int[1]',
+[zmq.RECONNECT_IVL] = 'int[1]',
+[zmq.BACKLOG] = 'int[1]',
+}
+local option_len = {}
+local option_tmps = {}
+for k,v in pairs(option_types) do
+  if v ~= 'string' then
+    option_len[k] = ffi.sizeof(v)
+    option_tmps[k] = ffi.new(v, 0)
+  end
+end
+
 ]],
 	method "setopt" {
 		var_in{ "uint32_t", "opt" },
@@ -147,8 +179,25 @@ int zmq_getsockopt (void *s, int option, void *optval, size_t *optvallen);
 		break;
 	}
 	${err} = zmq_setsockopt(${this}, ${opt}, val, val_len);
-]]
+]],
+		ffi_source[[
+	local ctype = option_types[${opt}]
+	local tval
+	local tval_len = 0
+	if ctype == 'string' then
+		tval = tostring(${val})
+		tval_len = #${val}
+	else
+		tval = option_tmps[${opt}]
+		tval[0] = ${val}
+		tval_len = option_len[${opt}]
+	end
+	${err} = C.zmq_setsockopt(${this}, ${opt}, tval, tval_len)
+]],
 	},
+		ffi_source[[
+local tmp_val_len = ffi.new('size_t[1]', 4)
+]],
 	method "getopt" {
 		var_in{ "uint32_t", "opt" },
 		var_out{ "<any>", "val" },
@@ -226,7 +275,30 @@ int zmq_getsockopt (void *s, int option, void *optval, size_t *optvallen);
 		break;
 	}
 	lua_pushnil(L);
-]]
+]],
+		ffi_source[[
+	local ctype = option_types[${opt}]
+	local val
+	local val_len = tmp_val_len
+	if ctype == 'string' then
+		val_len[0] = 255
+		val = ffi.new('uint8_t[?]', val_len[0])
+		ffi.fill(val, val_len[0])
+	else
+		val = option_tmps[${opt}]
+		val[0] = 0
+		val_len[0] = option_len[${opt}]
+	end
+	${err} = C.zmq_getsockopt(${this}, ${opt}, val, val_len)
+	if ${err} == 0 then
+		if ctype == 'string' then
+			val_len = val_len[0]
+			return ffi.string(val, val_len)
+		else
+			return tonumber(val[0])
+		end
+	end
+]],
 	},
 	ffi_source[[
 -- temp. values for 'events' function.

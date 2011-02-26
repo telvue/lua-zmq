@@ -1191,6 +1191,98 @@ function ZMQ_Socket_meth.connect(self, addr)\n\
   return rc_zmq_connect, rc_zmq_connect_err\n\
 end\n\
 \n\
+local option_types = {\n\
+[zmq.HWM] = 'uint64_t[1]',\n\
+[zmq.SWAP] = 'int64_t[1]',\n\
+[zmq.AFFINITY] = 'uint64_t[1]',\n\
+[zmq.IDENTITY] = 'string',\n\
+[zmq.SUBSCRIBE] = 'string',\n\
+[zmq.UNSUBSCRIBE] = 'string',\n\
+[zmq.RATE] = 'int64_t[1]',\n\
+[zmq.RECOVERY_IVL] = 'int64_t[1]',\n\
+[zmq.MCAST_LOOP] = 'int64_t[1]',\n\
+[zmq.SNDBUF] = 'uint64_t[1]',\n\
+[zmq.RCVBUF] = 'uint64_t[1]',\n\
+[zmq.RCVMORE] = 'int64_t[1]',\n\
+[zmq.FD] = 'int[1]',\n\
+[zmq.EVENTS] = 'uint32_t[1]',\n\
+[zmq.TYPE] = 'int[1]',\n\
+[zmq.LINGER] = 'int[1]',\n\
+[zmq.RECONNECT_IVL] = 'int[1]',\n\
+[zmq.BACKLOG] = 'int[1]',\n\
+}\n\
+local option_len = {}\n\
+local option_tmps = {}\n\
+for k,v in pairs(option_types) do\n\
+  if v ~= 'string' then\n\
+    option_len[k] = ffi.sizeof(v)\n\
+    option_tmps[k] = ffi.new(v, 0)\n\
+  end\n\
+end\n\
+\n\
+\n\
+-- method: setopt\n\
+function ZMQ_Socket_meth.setopt(self, opt, val)\n\
+  local this = obj_type_ZMQ_Socket_check(self)\n\
+  \n\
+  local err\n\
+	local ctype = option_types[opt]\n\
+	local tval\n\
+	local tval_len = 0\n\
+	if ctype == 'string' then\n\
+		tval = tostring(val)\n\
+		tval_len = #val\n\
+	else\n\
+		tval = option_tmps[opt]\n\
+		tval[0] = val\n\
+		tval_len = option_len[opt]\n\
+	end\n\
+	err = C.zmq_setsockopt(this, opt, tval, tval_len)\n\
+\n\
+  -- check for error.\n\
+  local err_err\n\
+  if (0 ~= err) then\n\
+    err = false\n\
+    err_err =   error_code__ZMQ_Error__push(err)\n\
+  else\n\
+    err = true\n\
+  end\n\
+  return err, err_err\n\
+end\n\
+\n\
+local tmp_val_len = ffi.new('size_t[1]', 4)\n\
+\n\
+-- method: getopt\n\
+function ZMQ_Socket_meth.getopt(self, opt)\n\
+  local this = obj_type_ZMQ_Socket_check(self)\n\
+  \n\
+  local err\n\
+	local ctype = option_types[opt]\n\
+	local val\n\
+	local val_len = tmp_val_len\n\
+	if ctype == 'string' then\n\
+		val_len[0] = 255\n\
+		val = ffi.new('uint8_t[?]', val_len[0])\n\
+		ffi.fill(val, val_len[0])\n\
+	else\n\
+		val = option_tmps[opt]\n\
+		val[0] = 0\n\
+		val_len[0] = option_len[opt]\n\
+	end\n\
+	err = C.zmq_getsockopt(this, opt, val, val_len)\n\
+	if err == 0 then\n\
+		if ctype == 'string' then\n\
+			val_len = val_len[0]\n\
+			return ffi.string(val, val_len)\n\
+		else\n\
+			return tonumber(val[0])\n\
+		end\n\
+	end\n\
+\n\
+  err =   error_code__ZMQ_Error__push(err)\n\
+  return err\n\
+end\n\
+\n\
 -- temp. values for 'events' function.\n\
 local events_tmp = ffi.new('uint32_t[1]', 0)\n\
 local events_tmp_size = ffi.sizeof('uint32_t')\n\
@@ -1411,27 +1503,28 @@ typedef int socket_t;
 #define OPT_TYPE_FD			6
 
 static const int opt_types[] = {
-	OPT_TYPE_NONE,		/* unused */
-	OPT_TYPE_UINT64,	/* ZMQ_HWM */
-	OPT_TYPE_INT64,		/* ZMQ_SWAP */
-	OPT_TYPE_UINT64,	/* ZMQ_AFFINITY */
-	OPT_TYPE_STR,			/* ZMQ_IDENTITY */
-	OPT_TYPE_STR,			/* ZMQ_SUBSCRIBE */
-	OPT_TYPE_STR,			/* ZMQ_UNSUBSCRIBE */
-	OPT_TYPE_INT64,		/* ZMQ_RATE */
-	OPT_TYPE_INT64,		/* ZMQ_RECOVERY_IVL */
-	OPT_TYPE_INT64,		/* ZMQ_MCAST_LOOP */
-	OPT_TYPE_UINT64,	/* ZMQ_SNDBUF */
-	OPT_TYPE_UINT64,	/* ZMQ_RCVBUF */
-	OPT_TYPE_INT64,		/* ZMQ_RCVMORE */
+	OPT_TYPE_NONE,		/*  0 unused */
+	OPT_TYPE_UINT64,	/*  1 ZMQ_HWM */
+	OPT_TYPE_NONE,		/*  2 unused */
+	OPT_TYPE_INT64,		/*  3 ZMQ_SWAP */
+	OPT_TYPE_UINT64,	/*  4 ZMQ_AFFINITY */
+	OPT_TYPE_STR,			/*  5 ZMQ_IDENTITY */
+	OPT_TYPE_STR,			/*  6 ZMQ_SUBSCRIBE */
+	OPT_TYPE_STR,			/*  7 ZMQ_UNSUBSCRIBE */
+	OPT_TYPE_INT64,		/*  8 ZMQ_RATE */
+	OPT_TYPE_INT64,		/*  9 ZMQ_RECOVERY_IVL */
+	OPT_TYPE_INT64,		/* 10 ZMQ_MCAST_LOOP */
+	OPT_TYPE_UINT64,	/* 11 ZMQ_SNDBUF */
+	OPT_TYPE_UINT64,	/* 12 ZMQ_RCVBUF */
+	OPT_TYPE_INT64,		/* 13 ZMQ_RCVMORE */
 
 #if VERSION_2_1
-	OPT_TYPE_FD,			/* ZMQ_FD */
-	OPT_TYPE_UINT32,	/* ZMQ_EVENTS */
-	OPT_TYPE_INT,			/* ZMQ_TYPE */
-	OPT_TYPE_INT,			/* ZMQ_LINGER */
-	OPT_TYPE_INT,			/* ZMQ_RECONNECT_IVL */
-	OPT_TYPE_INT,			/* ZMQ_BACKLOG */
+	OPT_TYPE_FD,			/* 14 ZMQ_FD */
+	OPT_TYPE_UINT32,	/* 15 ZMQ_EVENTS */
+	OPT_TYPE_INT,			/* 16 ZMQ_TYPE */
+	OPT_TYPE_INT,			/* 17 ZMQ_LINGER */
+	OPT_TYPE_INT,			/* 18 ZMQ_RECONNECT_IVL */
+	OPT_TYPE_INT,			/* 19 ZMQ_BACKLOG */
 #endif
 };
 #define MAX_OPTS ZMQ_BACKLOG
