@@ -648,12 +648,6 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 
 
 static const char zmq_ffi_lua_code[] = "\
-local _M, _priv, udata_new = ...\n\
-\n\
-local band = bit.band\n\
-local d_getmetatable = debug.getmetatable\n\
-local d_setmetatable = debug.setmetatable\n\
-\n\
 -- try loading luajit's ffi\n\
 local stat, ffi=pcall(require,\"ffi\")\n\
 if not stat then\n\
@@ -664,6 +658,12 @@ if disable_ffi then\n\
 	print(\"FFI disabled: Using standard Lua api interface.\")\n\
 	return\n\
 end\n\
+\n\
+local _M, _priv, udata_new = ...\n\
+\n\
+local band = bit.band\n\
+local d_getmetatable = debug.getmetatable\n\
+local d_setmetatable = debug.setmetatable\n\
 \n\
 local OBJ_UDATA_FLAG_OWN		= 1\n\
 local OBJ_UDATA_FLAG_LOOKUP	= 2\n\
