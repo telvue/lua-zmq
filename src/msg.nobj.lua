@@ -152,8 +152,8 @@ int zmq_msg_init_data (zmq_msg_t *msg, void *data, size_t size, zmq_free_fn *ffn
 	${data_len} = zmq_msg_size(${this});
 ]],
 		ffi_source[[
-	${data} = zmq_msg_data(${this});
-	${data_len} = zmq_msg_size(${this});
+	${data} = C.zmq_msg_data(${this});
+	${data_len} = C.zmq_msg_size(${this});
 ]],
 	},
 }
