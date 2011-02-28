@@ -149,15 +149,18 @@ c_function "init_ctx" {
 	if(lua_isuserdata(L, ${ptr::idx})) {
 		${ctx} = lua_touserdata(L, ${ptr::idx});
 	} else {
-		/* check if value is a LuaJIT 'cdata' */
-		int type = lua_type(L, ${ptr::idx});
-		const char *typename = lua_typename(L, type);
-		if(strncmp(typename, "cdata", sizeof("cdata")) == 0) {
-			${ctx} = (void *)lua_topointer(L, ${ptr::idx});
-		} else {
-			return luaL_argerror(L, ${ptr::idx}, "(expected userdata)");
-		}
+		return luaL_argerror(L, ${ptr::idx}, "expected lightuserdata");
 	}
+]],
+	ffi_source[[
+	local p_type = type(${ptr})
+	if p_type == 'userdata' then
+		${ctx} = ffi.cast('void *', ${ptr});
+	elseif p_type == 'cdata' then
+		${ctx} = ${ptr};
+	else
+		return error("expected lightuserdata/cdata<void *>");
+	end
 ]],
 },
 c_function "device" {
