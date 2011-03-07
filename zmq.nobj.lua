@@ -11,7 +11,10 @@ luajit_ffi = true,
 sys_include "string.h",
 include "zmq.h",
 
-ffi_load "zmq",
+ffi_load {
+"zmq", -- default lib name.
+Windows = "libzmq", -- lib name for on windows.
+},
 
 c_source[[
 #define OBJ_UDATA_CTX_SHOULD_FREE (OBJ_UDATA_LAST_FLAG << 1)

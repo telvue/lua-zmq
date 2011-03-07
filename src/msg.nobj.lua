@@ -28,10 +28,10 @@ object "zmq_msg_t" {
 
 typedef struct zmq_msg_t
 {
-    void *content;
-    unsigned char flags;
-    unsigned char vsm_size;
-    unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */
+	void *content;
+	unsigned char flags;
+	unsigned char vsm_size;
+	unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */
 } zmq_msg_t;
 
 typedef void (zmq_free_fn) (void *data, void *hint);

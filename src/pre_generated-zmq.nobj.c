@@ -28,9 +28,11 @@
 
 #ifdef _MSC_VER
 
-/* define some types that we need. */
+/* define some standard types missing on Windows. */
 typedef __int32 int32_t;
+typedef __int64 int64_t;
 typedef unsigned __int32 uint32_t;
+typedef unsigned __int64 uint64_t;
 typedef int bool;
 
 #define FUNC_UNUSED
@@ -153,27 +155,27 @@ typedef struct ffi_export_symbol {
 
 #define obj_type_id_zmq_msg_t 0
 #define obj_type_zmq_msg_t_check(L, _index) \
-  (zmq_msg_t *)obj_simple_udata_luacheck(L, _index, &(obj_type_zmq_msg_t))
+	(zmq_msg_t *)obj_simple_udata_luacheck(L, _index, &(obj_type_zmq_msg_t))
 #define obj_type_zmq_msg_t_delete(L, _index, flags) \
-  (zmq_msg_t *)obj_simple_udata_luadelete(L, _index, &(obj_type_zmq_msg_t), flags)
+	(zmq_msg_t *)obj_simple_udata_luadelete(L, _index, &(obj_type_zmq_msg_t), flags)
 #define obj_type_zmq_msg_t_push(L, obj, flags) \
-  obj_simple_udata_luapush(L, obj, sizeof(zmq_msg_t), &(obj_type_zmq_msg_t))
+	obj_simple_udata_luapush(L, obj, sizeof(zmq_msg_t), &(obj_type_zmq_msg_t))
 
 #define obj_type_id_ZMQ_Socket 1
 #define obj_type_ZMQ_Socket_check(L, _index) \
-  obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Socket))
+	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Socket))
 #define obj_type_ZMQ_Socket_delete(L, _index, flags) \
-  obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Socket), flags)
+	obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Socket), flags)
 #define obj_type_ZMQ_Socket_push(L, obj, flags) \
-  obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Socket), flags)
+	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Socket), flags)
 
 #define obj_type_id_ZMQ_Ctx 2
 #define obj_type_ZMQ_Ctx_check(L, _index) \
-  obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Ctx))
+	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Ctx))
 #define obj_type_ZMQ_Ctx_delete(L, _index, flags) \
-  obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Ctx), flags)
+	obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Ctx), flags)
 #define obj_type_ZMQ_Ctx_push(L, obj, flags) \
-  obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Ctx), flags)
+	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Ctx), flags)
 
 
 
@@ -509,7 +511,6 @@ static void obj_type_register_constants(lua_State *L, const obj_const *constants
 }
 
 static void obj_type_register_package(lua_State *L, const reg_sub_module *type_reg) {
-	obj_type *type = type_reg->type;
 	const luaL_reg *reg_list = type_reg->pub_funcs;
 
 	/* create public functions table. */
@@ -529,7 +530,8 @@ static void obj_type_register(lua_State *L, const reg_sub_module *type_reg, int 
 	const obj_base *base = type_reg->bases;
 
 	if(type_reg->is_package == 1) {
-		return obj_type_register_package(L, type_reg);
+		obj_type_register_package(L, type_reg);
+		return;
 	}
 
 	/* create public functions table. */
@@ -822,10 +824,10 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "\n"
 "typedef struct zmq_msg_t\n"
 "{\n"
-"    void *content;\n"
-"    unsigned char flags;\n"
-"    unsigned char vsm_size;\n"
-"    unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */\n"
+"	void *content;\n"
+"	unsigned char flags;\n"
+"	unsigned char vsm_size;\n"
+"	unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */\n"
 "} zmq_msg_t;\n"
 "\n"
 "typedef void (zmq_free_fn) (void *data, void *hint);\n"
@@ -971,7 +973,10 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "local zmq_pub = _M\n"
 "\n"
 "\n"
-"local C = ffi.load(\"zmq\",false)\n"
+"local os_lib_table = {\n"
+"	[\"Windows\"] = \"libzmq\",\n"
+"}\n"
+"local C = ffi.load(os_lib_table[ffi.os] or \"zmq\")\n"
 "\n"
 "local OBJ_UDATA_CTX_SHOULD_FREE = (OBJ_UDATA_LAST_FLAG * 2)\n"
 "\n"
@@ -1681,8 +1686,8 @@ static int zmq_msg_t__init_data__meth(lua_State *L) {
 static int zmq_msg_t__delete__meth(lua_State *L) {
   int this_flags = 0;
   zmq_msg_t * this = obj_type_zmq_msg_t_delete(L,1,&(this_flags));
-  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
   ZMQ_Error rc_zmq_msg_close = 0;
+  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
   rc_zmq_msg_close = zmq_msg_close(this);
   /* check for error. */
   if((0 != rc_zmq_msg_close)) {
@@ -1828,8 +1833,8 @@ static int zmq_msg_t____tostring__meth(lua_State *L) {
 static int ZMQ_Socket__close__meth(lua_State *L) {
   int this_flags = 0;
   ZMQ_Socket * this = obj_type_ZMQ_Socket_delete(L,1,&(this_flags));
-  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
   ZMQ_Error rc_zmq_close = 0;
+  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
   rc_zmq_close = zmq_close(this);
   /* check for error. */
   if((0 != rc_zmq_close)) {
@@ -1883,7 +1888,9 @@ static int ZMQ_Socket__setopt__meth(lua_State *L) {
 	size_t val_len;
 	const void *val;
 
+#if VERSION_2_1
 	socket_t fd_val;
+#endif
 	int int_val;
 	uint32_t uint32_val;
 	uint64_t uint64_val;
@@ -1894,11 +1901,13 @@ static int ZMQ_Socket__setopt__meth(lua_State *L) {
 	}
 
 	switch(opt_types[opt]) {
+#if VERSION_2_1
 	case OPT_TYPE_FD:
 		fd_val = luaL_checklong(L, 3);
 		val = &fd_val;
 		val_len = sizeof(fd_val);
 		break;
+#endif
 	case OPT_TYPE_INT:
 		int_val = luaL_checklong(L, 3);
 		val = &int_val;
@@ -1946,7 +1955,9 @@ static int ZMQ_Socket__getopt__meth(lua_State *L) {
   ZMQ_Error err = 0;
 	size_t val_len;
 
+#if VERSION_2_1
 	socket_t fd_val;
+#endif
 	int int_val;
 	uint32_t uint32_val;
 	uint64_t uint64_val;
@@ -1961,6 +1972,7 @@ static int ZMQ_Socket__getopt__meth(lua_State *L) {
 	}
 
 	switch(opt_types[opt]) {
+#if VERSION_2_1
 	case OPT_TYPE_FD:
 		val_len = sizeof(fd_val);
 		err = zmq_getsockopt(this, opt, &fd_val, &val_len);
@@ -1969,6 +1981,7 @@ static int ZMQ_Socket__getopt__meth(lua_State *L) {
 			return 1;
 		}
 		break;
+#endif
 	case OPT_TYPE_INT:
 		val_len = sizeof(int_val);
 		err = zmq_getsockopt(this, opt, &int_val, &val_len);
@@ -2459,7 +2472,7 @@ static void create_object_instance_cache(lua_State *L) {
 	lua_rawset(L, LUA_REGISTRYINDEX);  /* create reference to weak table. */
 }
 
-int luaopen_zmq(lua_State *L) {
+LUALIB_API int luaopen_zmq(lua_State *L) {
 	const reg_sub_module *reg = reg_sub_modules;
 	const luaL_Reg *submodules = submodule_libs;
 	int priv_table = -1;

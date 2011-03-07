@@ -134,7 +134,9 @@ end
 	size_t val_len;
 	const void *val;
 
+#if VERSION_2_1
 	socket_t fd_val;
+#endif
 	int int_val;
 	uint32_t uint32_val;
 	uint64_t uint64_val;
@@ -145,11 +147,13 @@ end
 	}
 
 	switch(opt_types[${opt}]) {
+#if VERSION_2_1
 	case OPT_TYPE_FD:
 		fd_val = luaL_checklong(L, ${val::idx});
 		val = &fd_val;
 		val_len = sizeof(fd_val);
 		break;
+#endif
 	case OPT_TYPE_INT:
 		int_val = luaL_checklong(L, ${val::idx});
 		val = &int_val;
@@ -205,7 +209,9 @@ local tmp_val_len = ffi.new('size_t[1]', 4)
 		c_source[[
 	size_t val_len;
 
+#if VERSION_2_1
 	socket_t fd_val;
+#endif
 	int int_val;
 	uint32_t uint32_val;
 	uint64_t uint64_val;
@@ -220,6 +226,7 @@ local tmp_val_len = ffi.new('size_t[1]', 4)
 	}
 
 	switch(opt_types[${opt}]) {
+#if VERSION_2_1
 	case OPT_TYPE_FD:
 		val_len = sizeof(fd_val);
 		${err} = zmq_getsockopt(${this}, ${opt}, &fd_val, &val_len);
@@ -228,6 +235,7 @@ local tmp_val_len = ffi.new('size_t[1]', 4)
 			return 1;
 		}
 		break;
+#endif
 	case OPT_TYPE_INT:
 		val_len = sizeof(int_val);
 		${err} = zmq_getsockopt(${this}, ${opt}, &int_val, &val_len);
