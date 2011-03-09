@@ -1563,7 +1563,11 @@ static const int opt_types[] = {
 	OPT_TYPE_INT,			/* 19 ZMQ_BACKLOG */
 #endif
 };
+#if VERSION_2_1
 #define MAX_OPTS ZMQ_BACKLOG
+#else
+#define MAX_OPTS ZMQ_RCVMORE
+#endif
 
 
 static ZMQ_Error simple_zmq_send(ZMQ_Socket sock, const char *data, size_t data_len, int flags) {
@@ -2039,8 +2043,12 @@ static int ZMQ_Socket__events__meth(lua_State *L) {
   ZMQ_Socket * this = obj_type_ZMQ_Socket_check(L,1);
   uint32_t events = 0;
   ZMQ_Error err = 0;
+#if VERSION_2_1
 	size_t val_len = sizeof(events);
 	err = zmq_getsockopt(this, ZMQ_EVENTS, &(events), &val_len);
+#else
+	luaL_error(L, "'events' method only supported in 0MQ version >= 2.1");
+#endif
 
   if(!(0 != err)) {
     lua_pushinteger(L, events);

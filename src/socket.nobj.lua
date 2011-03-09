@@ -78,7 +78,11 @@ static const int opt_types[] = {
 	OPT_TYPE_INT,			/* 19 ZMQ_BACKLOG */
 #endif
 };
+#if VERSION_2_1
 #define MAX_OPTS ZMQ_BACKLOG
+#else
+#define MAX_OPTS ZMQ_RCVMORE
+#endif
 
 ]],
 
@@ -319,8 +323,12 @@ local ZMQ_EVENTS = _M.EVENTS
 		var_out{ "uint32_t", "events" },
 		var_out{ "ZMQ_Error", "err" },
 		c_source[[
+#if VERSION_2_1
 	size_t val_len = sizeof(${events});
 	${err} = zmq_getsockopt(${this}, ZMQ_EVENTS, &(${events}), &val_len);
+#else
+	luaL_error(L, "'events' method only supported in 0MQ version >= 2.1");
+#endif
 ]],
 		ffi_source[[
 	events_tmp_len[0] = events_tmp_size
