@@ -46,7 +46,7 @@ set(LUA_ZMQ_SRC
 )
 
 if(${USE_PRE_GENERATED_BINDINGS})
-	set(LUA_ZMQ_SRC pre_generated-zmq.nobj.c)
+	set(LUA_ZMQ_SRC src/pre_generated-zmq.nobj.c)
 else()
 	# Generate Lua bindings.
 	GenLuaNativeObjects(LUA_ZMQ_SRC)
