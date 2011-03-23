@@ -120,6 +120,7 @@ subfiles {
 "src/error.nobj.lua",
 "src/msg.nobj.lua",
 "src/socket.nobj.lua",
+"src/poller.nobj.lua",
 "src/ctx.nobj.lua",
 },
 

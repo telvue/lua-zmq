@@ -27,16 +27,16 @@ error_code "ZMQ_Error" "int" {
 	ffi_cdef[[
 typedef int ZMQ_Error;
 ]],
-	is_error_check = function(rec) return "(0 != ${" .. rec.name .. "})" end,
-	ffi_is_error_check = function(rec) return "(0 ~= ${" .. rec.name .. "})" end,
+	is_error_check = function(rec) return "(-1 == ${" .. rec.name .. "})" end,
+	ffi_is_error_check = function(rec) return "(-1 == ${" .. rec.name .. "})" end,
 	default = "0",
 	c_source [[
-	if(err != 0) {
+	if(-1 == err) {
 		err_str = get_zmq_strerror();
 	}
 ]],
 	ffi_source [[
-	if(0 ~= err) then
+	if(-1 == err) then
 		err_str = get_zmq_strerror();
 	end
 ]],
