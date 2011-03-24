@@ -1,5 +1,5 @@
 package = "lua-zmq-threads"
-version = "scm-1"
+version = "scm-0"
 source = {
 	url = "git://github.com/Neopallium/lua-zmq.git"
 }
