@@ -9,8 +9,7 @@ description = {
 	license = "MIT/X11"
 }
 dependencies = {
-	"lua >= 5.1",
-	"zmq",
+	"lua-zmq",
 }
 build = {
 	type = "builtin",
