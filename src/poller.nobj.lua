@@ -18,26 +18,26 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
-local zmq_poller_type = [[
-typedef struct zmq_poller {
+local ZMQ_Poller_type = [[
+typedef struct ZMQ_Poller {
 	zmq_pollitem_t *items;
 	int    next;
 	int    count;
 	int    free_list;
 	int    len;
-} zmq_poller;
+} ZMQ_Poller;
 ]]
 
-object "zmq_poller" {
-	-- store the `zmq_poller` structure in Lua userdata object
+object "ZMQ_Poller" {
+	-- store the `ZMQ_Poller` structure in Lua userdata object
 	userdata_type = "embed",
-	c_source(zmq_poller_type),
+	c_source(ZMQ_Poller_type),
 	c_source[[
 #define FREE_ITEM_EVENTS_TAG 0xFFFF
 
 #define ITEM_TO_INDEX(items, item) (item - (items))
 
-static int poller_resize_items(zmq_poller *this, int len) {
+static int poller_resize_items(ZMQ_Poller *this, int len) {
 	int old_len = this->len;
 
 	/* make sure new length is atleast as large as items count. */
@@ -55,7 +55,7 @@ static int poller_resize_items(zmq_poller *this, int len) {
 	return len;
 }
 
-static int poller_find_sock_item(zmq_poller *this, ZMQ_Socket *sock) {
+static int poller_find_sock_item(ZMQ_Poller *this, ZMQ_Socket *sock) {
 	zmq_pollitem_t *items;
 	int count;
 	int n;
@@ -70,7 +70,7 @@ static int poller_find_sock_item(zmq_poller *this, ZMQ_Socket *sock) {
 	return -1;
 }
 
-static int poller_find_fd_item(zmq_poller *this, socket_t fd) {
+static int poller_find_fd_item(ZMQ_Poller *this, socket_t fd) {
 	zmq_pollitem_t *items;
 	int count;
 	int n;
@@ -85,7 +85,7 @@ static int poller_find_fd_item(zmq_poller *this, socket_t fd) {
 	return -1;
 }
 
-static void poller_remove_item(zmq_poller *this, int idx) {
+static void poller_remove_item(ZMQ_Poller *this, int idx) {
 	zmq_pollitem_t *items;
 	int free_list;
 	int count;
@@ -110,7 +110,7 @@ static void poller_remove_item(zmq_poller *this, int idx) {
 	items[idx].events = FREE_ITEM_EVENTS_TAG;
 }
 
-static int poller_get_free_item(zmq_poller *this) {
+static int poller_get_free_item(ZMQ_Poller *this) {
 	zmq_pollitem_t *curr;
 	zmq_pollitem_t *next;
 	int count;
@@ -147,7 +147,7 @@ static int poller_get_free_item(zmq_poller *this) {
 	return idx;
 }
 
-static int poller_compact_items(zmq_poller *this) {
+static int poller_compact_items(ZMQ_Poller *this) {
 	zmq_pollitem_t *items;
 	int count;
 	int old_count;
@@ -186,7 +186,7 @@ static int poller_compact_items(zmq_poller *this) {
 	return count;
 }
 
-static int poller_poll(zmq_poller *this, long timeout) {
+static int poller_poll(ZMQ_Poller *this, long timeout) {
 	int count;
 	/* remove free slots from items list. */
 	count = poller_compact_items(this);
@@ -195,13 +195,13 @@ static int poller_poll(zmq_poller *this, long timeout) {
 }
 
 ]],
-	ffi_export_function "int" "poller_find_sock_item" "(zmq_poller *this, ZMQ_Socket *sock)",
-	ffi_export_function "int" "poller_find_fd_item" "(zmq_poller *this, socket_t fd)",
-	ffi_export_function "int" "poller_get_free_item" "(zmq_poller *this)",
-	ffi_export_function "int" "poller_poll" "(zmq_poller *this, long timeout)",
-	ffi_export_function "void" "poller_remove_item" "(zmq_poller *this, int idx)",
+	ffi_export_function "int" "poller_find_sock_item" "(ZMQ_Poller *this, ZMQ_Socket *sock)",
+	ffi_export_function "int" "poller_find_fd_item" "(ZMQ_Poller *this, socket_t fd)",
+	ffi_export_function "int" "poller_get_free_item" "(ZMQ_Poller *this)",
+	ffi_export_function "int" "poller_poll" "(ZMQ_Poller *this, long timeout)",
+	ffi_export_function "void" "poller_remove_item" "(ZMQ_Poller *this, int idx)",
 --
--- Define zmq_poller type & function API for FFI
+-- Define ZMQ_Poller type & function API for FFI
 --
 	ffi_cdef[[
 typedef struct zmq_pollitem_t {
@@ -213,12 +213,12 @@ typedef struct zmq_pollitem_t {
 
 int zmq_poll(zmq_pollitem_t *items, int nitems, long timeout);
 ]],
-	ffi_cdef(zmq_poller_type),
+	ffi_cdef(ZMQ_Poller_type),
 
 	constructor "new" {
 		var_in{ "unsigned int", "length", is_optional = true, default = 10 },
 		c_source[[
-	zmq_poller poller;
+	ZMQ_Poller poller;
 	${this} = &poller;
 	${this}->items = (zmq_pollitem_t *)calloc(${length}, sizeof(zmq_pollitem_t));
 	${this}->next = -1;

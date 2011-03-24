@@ -19,7 +19,7 @@
 -- THE SOFTWARE.
 
 --
--- zmq.poller wraps the low-level zmq.zmq_poller object.
+-- zmq.poller wraps the low-level zmq.ZMQ_Poller object.
 --
 -- This wrapper simplifies the event polling loop.
 --
@@ -87,7 +87,7 @@ module(...)
 
 function new(pre_alloc)
 	return setmetatable({
-		poller = zmq.zmq_poller(pre_alloc),
+		poller = zmq.ZMQ_Poller(pre_alloc),
 		callbacks = setmetatable({}, {__mode="k"}),
 	}, poller_mt)
 end
