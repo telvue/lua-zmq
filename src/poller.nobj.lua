@@ -195,15 +195,11 @@ static int poller_poll(ZMQ_Poller *this, long timeout) {
 }
 
 ]],
-	ffi_export_function "int" "poller_find_sock_item" "(ZMQ_Poller *this, ZMQ_Socket *sock)",
-	ffi_export_function "int" "poller_find_fd_item" "(ZMQ_Poller *this, socket_t fd)",
-	ffi_export_function "int" "poller_get_free_item" "(ZMQ_Poller *this)",
-	ffi_export_function "int" "poller_poll" "(ZMQ_Poller *this, long timeout)",
-	ffi_export_function "void" "poller_remove_item" "(ZMQ_Poller *this, int idx)",
 --
 -- Define ZMQ_Poller type & function API for FFI
 --
 	ffi_cdef[[
+typedef int socket_t;
 typedef struct zmq_pollitem_t {
 	ZMQ_Socket socket;
 	socket_t fd;
@@ -214,6 +210,11 @@ typedef struct zmq_pollitem_t {
 int zmq_poll(zmq_pollitem_t *items, int nitems, long timeout);
 ]],
 	ffi_cdef(ZMQ_Poller_type),
+	ffi_export_function "int" "poller_find_sock_item" "(ZMQ_Poller *this, ZMQ_Socket *sock)",
+	ffi_export_function "int" "poller_find_fd_item" "(ZMQ_Poller *this, socket_t fd)",
+	ffi_export_function "int" "poller_get_free_item" "(ZMQ_Poller *this)",
+	ffi_export_function "int" "poller_poll" "(ZMQ_Poller *this, long timeout)",
+	ffi_export_function "void" "poller_remove_item" "(ZMQ_Poller *this, int idx)",
 
 	constructor "new" {
 		var_in{ "unsigned int", "length", is_optional = true, default = 10 },
