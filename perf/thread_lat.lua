@@ -29,7 +29,7 @@ local message_size = tonumber(arg[3])
 local roundtrip_count = tonumber(arg[4])
 
 local zmq = require"zmq"
-local thread = require"zmq.thread"
+local zthreads = require"zmq.threads"
 
 local socket = require"socket"
 local time = socket.gettime
@@ -39,9 +39,9 @@ local child_code = [[
 	print("child:", ...)
 
 	local zmq = require"zmq"
-	local thread = require"zmq.thread"
+	local zthreads = require"zmq.threads"
 
-	local ctx = thread.get_parent_ctx()
+	local ctx = zthreads.get_parent_ctx()
 	local s = ctx:socket(zmq.REP)
 	s:connect(connect_to)
 
@@ -60,7 +60,7 @@ local ctx = zmq.init(1)
 local s = ctx:socket(zmq.REQ)
 s:bind(bind_to)
 
-local child_thread = thread.runstring(ctx, child_code, connect_to, message_size, roundtrip_count)
+local child_thread = zthreads.runstring(ctx, child_code, connect_to, message_size, roundtrip_count)
 child_thread:start()
 
 local data = ("0"):rep(message_size)

@@ -10,6 +10,7 @@ description = {
 }
 dependencies = {
 	"lua-zmq",
+	"lua-llthreads",
 }
 build = {
 	type = "none",
