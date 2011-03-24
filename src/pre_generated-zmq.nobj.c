@@ -12,7 +12,6 @@
 
 #include <string.h>
 #include "zmq.h"
-#include <pthread.h>
 
 
 #define REG_PACKAGE_IS_CONSTRUCTOR 0
@@ -178,15 +177,7 @@ typedef struct ffi_export_symbol {
 #define obj_type_ZMQ_Poller_push(L, obj, flags) \
 	obj_simple_udata_luapush(L, obj, sizeof(ZMQ_Poller), &(obj_type_ZMQ_Poller))
 
-#define obj_type_id_ZMQ_Thread 3
-#define obj_type_ZMQ_Thread_check(L, _index) \
-	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Thread))
-#define obj_type_ZMQ_Thread_delete(L, _index, flags) \
-	obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Thread), flags)
-#define obj_type_ZMQ_Thread_push(L, obj, flags) \
-	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Thread), flags)
-
-#define obj_type_id_ZMQ_Ctx 4
+#define obj_type_id_ZMQ_Ctx 3
 #define obj_type_ZMQ_Ctx_check(L, _index) \
 	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Ctx))
 #define obj_type_ZMQ_Ctx_delete(L, _index, flags) \
@@ -204,8 +195,7 @@ static void error_code__ZMQ_Error__push(lua_State *L, ZMQ_Error err);
 static obj_type obj_type_zmq_msg_t = { NULL, 0, OBJ_TYPE_SIMPLE, "zmq_msg_t" };
 static obj_type obj_type_ZMQ_Socket = { NULL, 1, OBJ_TYPE_FLAG_WEAK_REF, "ZMQ_Socket" };
 static obj_type obj_type_ZMQ_Poller = { NULL, 2, OBJ_TYPE_SIMPLE, "ZMQ_Poller" };
-static obj_type obj_type_ZMQ_Thread = { NULL, 3, OBJ_TYPE_FLAG_WEAK_REF, "ZMQ_Thread" };
-static obj_type obj_type_ZMQ_Ctx = { NULL, 4, OBJ_TYPE_FLAG_WEAK_REF, "ZMQ_Ctx" };
+static obj_type obj_type_ZMQ_Ctx = { NULL, 3, OBJ_TYPE_FLAG_WEAK_REF, "ZMQ_Ctx" };
 
 
 #ifndef REG_PACKAGE_IS_CONSTRUCTOR
@@ -885,16 +875,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "\n"
 "ZMQ_Error zmq_recv(ZMQ_Socket * this, zmq_msg_t * msg, int flags);\n"
 "\n"
-"typedef int (*poller_find_sock_item_func)(ZMQ_Poller *this, ZMQ_Socket *sock);\n"
-"\n"
-"typedef int (*poller_find_fd_item_func)(ZMQ_Poller *this, socket_t fd);\n"
-"\n"
-"typedef int (*poller_get_free_item_func)(ZMQ_Poller *this);\n"
-"\n"
-"typedef int (*poller_poll_func)(ZMQ_Poller *this, long timeout);\n"
-"\n"
-"typedef void (*poller_remove_item_func)(ZMQ_Poller *this, int idx);\n"
-"\n"
+"typedef int socket_t;\n"
 "typedef struct zmq_pollitem_t {\n"
 "	ZMQ_Socket socket;\n"
 "	socket_t fd;\n"
@@ -911,6 +892,16 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "	int    free_list;\n"
 "	int    len;\n"
 "} ZMQ_Poller;\n"
+"\n"
+"typedef int (*poller_find_sock_item_func)(ZMQ_Poller *this, ZMQ_Socket *sock);\n"
+"\n"
+"typedef int (*poller_find_fd_item_func)(ZMQ_Poller *this, socket_t fd);\n"
+"\n"
+"typedef int (*poller_get_free_item_func)(ZMQ_Poller *this);\n"
+"\n"
+"typedef int (*poller_poll_func)(ZMQ_Poller *this, long timeout);\n"
+"\n"
+"typedef void (*poller_remove_item_func)(ZMQ_Poller *this, int idx);\n"
 "\n"
 "typedef void * ZMQ_Ctx;\n"
 "\n"
@@ -1010,35 +1001,6 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "local function obj_type_ZMQ_Poller_push(c_obj)\n"
 "	local ud_obj, cdata = obj_simple_udata_luapush(c_obj, ZMQ_Poller_sizeof, ZMQ_Poller_mt)\n"
 "	ZMQ_Poller_objects[ud_obj] = cdata\n"
-"	return ud_obj\n"
-"end\n"
-"\n"
-"\n"
-"local ZMQ_Thread_pub = _M[\"ZMQ_Thread\"]\n"
-"local ZMQ_Thread_mt = _priv[\"ZMQ_Thread\"]\n"
-"local ZMQ_Thread_type = obj_type_ptr(ZMQ_Thread_mt[\".type\"])\n"
-"local ZMQ_Thread_meth = ZMQ_Thread_mt.__index\n"
-"local ZMQ_Thread_objects = setmetatable({}, { __mode = \"k\" })\n"
-"\n"
-"local function obj_type_ZMQ_Thread_check(ud_obj)\n"
-"	local c_obj = ZMQ_Thread_objects[ud_obj]\n"
-"	if c_obj == nil then\n"
-"		-- cdata object not in cache\n"
-"		c_obj = obj_udata_luacheck(ud_obj, ZMQ_Thread_mt)\n"
-"		c_obj = ffi.cast(\"ZMQ_Thread *\", c_obj) -- cast from 'void *'\n"
-"		ZMQ_Thread_objects[ud_obj] = c_obj\n"
-"	end\n"
-"	return c_obj\n"
-"end\n"
-"\n"
-"local function obj_type_ZMQ_Thread_delete(ud_obj)\n"
-"	ZMQ_Thread_objects[ud_obj] = nil\n"
-"	return obj_udata_luadelete(ud_obj, ZMQ_Thread_mt)\n"
-"end\n"
-"\n"
-"local function obj_type_ZMQ_Thread_push(c_obj, flags)\n"
-"	local ud_obj = obj_udata_luapush_weak(c_obj, ZMQ_Thread_mt, ZMQ_Thread_type, flags)\n"
-"	ZMQ_Thread_objects[ud_obj] = c_obj\n"
 "	return ud_obj\n"
 "end\n"
 "\n"
@@ -1546,10 +1508,6 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "-- End \"ZMQ_Poller\" FFI interface\n"
 "\n"
 "\n"
-"-- Start \"ZMQ_Thread\" FFI interface\n"
-"-- End \"ZMQ_Thread\" FFI interface\n"
-"\n"
-"\n"
 "-- Start \"ZMQ_Ctx\" FFI interface\n"
 "-- method: term\n"
 "function ZMQ_Ctx_meth.term(self)\n"
@@ -1886,93 +1844,6 @@ static int poller_poll(ZMQ_Poller *this, long timeout) {
 	count = poller_compact_items(this);
 	/* poll for events. */
 	return zmq_poll(this->items, count, timeout);
-}
-
-
-typedef enum {
-	TSTATE_NONE     = 0,
-	TSTATE_STARTED  = 1<<1,
-	TSTATE_DETACHED = 1<<2,
-	TSTATE_JOINED   = 1<<3,
-} ZMQ_TState;
-
-typedef struct ZMQ_Thread {
-	lua_State  *L;
-	pthread_t  thread;
-	ZMQ_TState state;
-	int        nargs;
-	int        status;
-} ZMQ_Thread;
-
-
-
-#include <stdio.h>
-
-/* traceback() function from Lua 5.1.x source. */
-static int traceback (lua_State *L) {
-  if (!lua_isstring(L, 1))  /* 'message' not a string? */
-    return 1;  /* keep it intact */
-  lua_getfield(L, LUA_GLOBALSINDEX, "debug");
-  if (!lua_istable(L, -1)) {
-    lua_pop(L, 1);
-    return 1;
-  }
-  lua_getfield(L, -1, "traceback");
-  if (!lua_isfunction(L, -1)) {
-    lua_pop(L, 2);
-    return 1;
-  }
-  lua_pushvalue(L, 1);  /* pass error message */
-  lua_pushinteger(L, 2);  /* skip this function and traceback */
-  lua_call(L, 2, 1);  /* call debug.traceback */
-  return 1;
-}
-
-static ZMQ_Thread *thread_new() {
-	ZMQ_Thread *this;
-
-	this = (ZMQ_Thread *)calloc(1, sizeof(ZMQ_Thread));
-	this->state = TSTATE_NONE;
-	/* create new lua_State for the thread. */
-	this->L = luaL_newstate();
-	/* open standard libraries. */
-	luaL_openlibs(this->L);
-	/* push traceback function as first value on stack. */
-	lua_pushcfunction(this->L, traceback);
-
-	return this;
-}
-
-static void thread_destroy(ZMQ_Thread *this) {
-	lua_close(this->L);
-	free(this);
-}
-
-static void *run_child_thread(void *arg) {
-	ZMQ_Thread *this = (ZMQ_Thread *)arg;
-	lua_State *L = this->L;
-
-	this->status = lua_pcall(L, this->nargs, 0, 1);
-
-	if(this->status != 0) {
-		const char *err_msg = lua_tostring(L, -1);
-		fprintf(stderr, "%s\n", err_msg);
-		fflush(stderr);
-	}
-
-	return NULL;
-}
-
-static int thread_start(ZMQ_Thread *this, int start_detached) {
-	int rc;
-
-	this->state = TSTATE_STARTED | ((start_detached) ? TSTATE_DETACHED : 0);
-	rc = pthread_create(&(this->thread), NULL, run_child_thread, this);
-	if(rc != 0) return rc;
-	if(start_detached) {
-		rc = pthread_detach(this->thread);
-	}
-	return rc;
 }
 
 
@@ -2742,114 +2613,6 @@ static int ZMQ_Poller__count__meth(lua_State *L) {
   return 1;
 }
 
-/* method: new */
-static int ZMQ_Thread__new__meth(lua_State *L) {
-  size_t bootstrap_code_len;
-  const char * bootstrap_code = luaL_checklstring(L,1,&(bootstrap_code_len));
-  int this_flags = OBJ_UDATA_FLAG_OWN;
-  ZMQ_Thread * this;
-	const char *str;
-	size_t str_len;
-	int nargs = 0;
-	int rc;
-	int top;
-	int n;
-
-	this = thread_new();
-	/* load bootstrap Lua code into child state. */
-	rc = luaL_loadbuffer(this->L, bootstrap_code, bootstrap_code_len, bootstrap_code);
-	if(rc != 0) {
-		/* copy error message to parent state. */
-		str = lua_tolstring(this->L, -1, &(str_len));
-		if(str != NULL) {
-			lua_pushlstring(L, str, str_len);
-		} else {
-			/* non-string error message. */
-			lua_pushfstring(L, "luaL_loadbuffer() failed to luad bootstrap code: rc=%d", rc);
-		}
-		thread_destroy(this);
-		return lua_error(L);
-	}
-	/* copy extra args from main state to child state. */
-	top = lua_gettop(L);
-	/* skip the bootstrap code. */
-	for(n = 1 + 1; n <= top; n++) {
-		/* only support string/number/boolean/nil/lightuserdata. */
-		switch(lua_type(L, n)) {
-		case LUA_TNIL:
-			lua_pushnil(this->L);
-			break;
-		case LUA_TNUMBER:
-			lua_pushnumber(this->L, lua_tonumber(L, n));
-			break;
-		case LUA_TBOOLEAN:
-			lua_pushboolean(this->L, lua_toboolean(L, n));
-			break;
-		case LUA_TSTRING:
-			str = lua_tolstring(L, n, &(str_len));
-			lua_pushlstring(this->L, str, str_len);
-			break;
-		case LUA_TLIGHTUSERDATA:
-			lua_pushlightuserdata(this->L, lua_touserdata(L, n));
-			break;
-		case LUA_TTABLE:
-		case LUA_TFUNCTION:
-		case LUA_TUSERDATA:
-		case LUA_TTHREAD:
-		default:
-			return luaL_argerror(L, n,
-				"Only nil/number/boolean/string/lightuserdata values are supported");
-		}
-		++nargs;
-	}
-	this->nargs = nargs;
-
-  obj_type_ZMQ_Thread_push(L, this, this_flags);
-  return 1;
-}
-
-/* method: delete */
-static int ZMQ_Thread__delete__meth(lua_State *L) {
-  int this_flags = 0;
-  ZMQ_Thread * this = obj_type_ZMQ_Thread_delete(L,1,&(this_flags));
-  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
-	/* We still own the thread object iff the thread was not started or we have joined the thread. */
-	if(this->state == TSTATE_NONE || this->state == TSTATE_JOINED) {
-		thread_destroy(this);
-	}
-
-  return 0;
-}
-
-/* method: start */
-static int ZMQ_Thread__start__meth(lua_State *L) {
-  ZMQ_Thread * this = obj_type_ZMQ_Thread_check(L,1);
-  bool start_detached = lua_toboolean(L,2);
-  int rc = 0;
-	if(this->state != TSTATE_NONE) {
-		return luaL_error(L, "Thread already started.");
-	}
-	rc = thread_start(this, start_detached);
-
-  lua_pushinteger(L, rc);
-  return 1;
-}
-
-/* method: join */
-static int ZMQ_Thread__join__meth(lua_State *L) {
-  ZMQ_Thread * this = obj_type_ZMQ_Thread_check(L,1);
-  int rc = 0;
-	if((this->state & TSTATE_STARTED) == 0) {
-		return luaL_error(L, "Can't join a thread that hasn't be started.");
-	}
-	rc = pthread_join(this->thread, NULL);
-	/* now we own the thread object again. */
-	this->state = TSTATE_JOINED;
-
-  lua_pushinteger(L, rc);
-  return 1;
-}
-
 /* method: delete */
 static int ZMQ_Ctx__delete__meth(lua_State *L) {
   int this_flags = 0;
@@ -3095,36 +2858,6 @@ static const obj_const obj_ZMQ_Poller_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg obj_ZMQ_Thread_pub_funcs[] = {
-  {"new", ZMQ_Thread__new__meth},
-  {NULL, NULL}
-};
-
-static const luaL_reg obj_ZMQ_Thread_methods[] = {
-  {"start", ZMQ_Thread__start__meth},
-  {"join", ZMQ_Thread__join__meth},
-  {NULL, NULL}
-};
-
-static const luaL_reg obj_ZMQ_Thread_metas[] = {
-  {"__gc", ZMQ_Thread__delete__meth},
-  {"__tostring", obj_udata_default_tostring},
-  {"__eq", obj_udata_default_equal},
-  {NULL, NULL}
-};
-
-static const obj_base obj_ZMQ_Thread_bases[] = {
-  {-1, NULL}
-};
-
-static const obj_field obj_ZMQ_Thread_fields[] = {
-  {NULL, 0, 0, 0}
-};
-
-static const obj_const obj_ZMQ_Thread_constants[] = {
-  {NULL, NULL, 0.0 , 0}
-};
-
 static const luaL_reg obj_ZMQ_Ctx_pub_funcs[] = {
   {NULL, NULL}
 };
@@ -3225,7 +2958,6 @@ static const reg_sub_module reg_sub_modules[] = {
   { &(obj_type_zmq_msg_t), 0, obj_zmq_msg_t_pub_funcs, obj_zmq_msg_t_methods, obj_zmq_msg_t_metas, obj_zmq_msg_t_bases, obj_zmq_msg_t_fields, obj_zmq_msg_t_constants},
   { &(obj_type_ZMQ_Socket), 0, obj_ZMQ_Socket_pub_funcs, obj_ZMQ_Socket_methods, obj_ZMQ_Socket_metas, obj_ZMQ_Socket_bases, obj_ZMQ_Socket_fields, obj_ZMQ_Socket_constants},
   { &(obj_type_ZMQ_Poller), 0, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants},
-  { &(obj_type_ZMQ_Thread), 0, obj_ZMQ_Thread_pub_funcs, obj_ZMQ_Thread_methods, obj_ZMQ_Thread_metas, obj_ZMQ_Thread_bases, obj_ZMQ_Thread_fields, obj_ZMQ_Thread_constants},
   { &(obj_type_ZMQ_Ctx), 0, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants},
   {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL}
 };
