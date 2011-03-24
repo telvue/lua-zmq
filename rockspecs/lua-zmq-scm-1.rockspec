@@ -18,7 +18,7 @@ build = {
 			sources = {"src/pre_generated-zmq.nobj.c"},
 			libraries = {"zmq"}
 		}
-	}
+	},
 	install = {
 		lua = {
 			['zmq.poller'] = "src/poller.lua",
