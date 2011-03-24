@@ -19,10 +19,11 @@
 -- THE SOFTWARE.
 
 --
--- zmq.thread wraps the low-level zmq.ZMQ_Thread object.
+-- zmq.thread wraps the low-level threads object & a zmq context.
 --
 
 local zmq = require"zmq"
+local llthreads = require"llthreads"
 
 local setmetatable = setmetatable
 local tonumber = tonumber
@@ -45,8 +46,8 @@ local func
 
 -- copy parent ZeroMQ context to this child thread.
 local zmq = require"zmq"
-local zmq_thread = require"zmq.thread"
-zmq_thread.set_parent_ctx(zmq.init_ctx(parent_ctx))
+local zthreads = require"zmq.threads"
+zthreads.set_parent_ctx(zmq.init_ctx(parent_ctx))
 
 -- create global 'arg'
 arg = { select(4, ...) }
@@ -69,7 +70,7 @@ return func(select(4, ...))
 local function new_thread(ctx, action, action_arg, ...)
 	-- convert ZMQ_Ctx to lightuserdata.
 	ctx = ctx:lightuserdata()
-	local thread = zmq.ZMQ_Thread(bootstrap_code, action, action_arg, ctx, ...)
+	local thread = llthreads.new(bootstrap_code, action, action_arg, ctx, ...)
 	return setmetatable({
 		thread = thread,
 	}, thread_mt)
