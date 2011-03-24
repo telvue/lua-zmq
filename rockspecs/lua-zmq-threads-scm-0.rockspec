@@ -12,7 +12,7 @@ dependencies = {
 	"lua-zmq",
 }
 build = {
-	type = "builtin",
+	type = "none",
 	install = {
 		lua = {
 			['zmq.threads'] = "src/threads.lua",
