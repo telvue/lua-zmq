@@ -336,6 +336,15 @@ int zmq_poll(zmq_pollitem_t *items, int nitems, long timeout);
 		${this}->next = -1;
 	}
 ]],
+		ffi_source[[
+	-- poll for events
+	${err} = poller_poll(${this}, ${timeout})
+	if(${err} > 0) then
+		${this}.next = 0
+	else
+		${this}.next = -1
+	end
+]],
 	},
 	method "next_revents" {
 		var_out{ "<any>", "sock" },
@@ -372,6 +381,38 @@ int zmq_poll(zmq_pollitem_t *items, int nitems, long timeout);
 		lua_pushnil(L);
 		${this}->next = -1;
 	}
+]],
+		ffi_source[[
+	local sock
+	local idx = ${this}.next
+	if (idx < 0) then return nil, -1 end
+	local count = ${this}.count
+	-- find next item with pending events.
+	while (idx < count and ${this}.items[idx].revents == 0) do
+		idx = idx + 1
+		if (idx >= count) then
+			idx = -1
+			break
+		end
+	end
+	-- did we find a pending event?
+	if(idx >= 0) then
+		-- push the event's sock/fd.
+		if(${this}.items[idx].socket ~= NULL) then
+			sock = obj_type_ZMQ_Socket_push(${this}.items[idx].socket, 0)
+		else
+			sock = tonumber(${this}.items[idx].fd)
+		end
+		${revents} = ${this}.items[idx].revents
+		-- is this the last event.
+		idx = idx + 1
+		if (idx >= count) then
+			idx = -1
+		end
+		${this}.next = idx
+		return sock, ${revents}
+	end
+	${this}.next = idx
 ]],
 	},
 	method "count" {

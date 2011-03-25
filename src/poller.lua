@@ -65,9 +65,10 @@ function poller_mt:poll(timeout)
 			break
 		end
 		local cb = callbacks[sock]
-		if cb then
-			cb(sock, revents)
+		if not cb then
+			error("Missing callback for sock:" .. tostring(sock))
 		end
+		cb(sock, revents)
 	end
 	return true
 end
