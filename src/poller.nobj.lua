@@ -33,7 +33,7 @@ object "ZMQ_Poller" {
 	userdata_type = "embed",
 	c_source(ZMQ_Poller_type),
 	c_source[[
-#define FREE_ITEM_EVENTS_TAG 0xFFFF
+#define FREE_ITEM_EVENTS_TAG ((short)0xFFFF)
 
 #define ITEM_TO_INDEX(items, item) (item - (items))
 
@@ -50,7 +50,7 @@ static int poller_resize_items(ZMQ_Poller *this, int len) {
 	this->len = len;
 	if(len > old_len) {
 		/* clear new space. */
-		memset(&(this->items[old_len]), 0, (old_len - len) * sizeof(zmq_pollitem_t));
+		memset(&(this->items[old_len]), 0, (len - old_len) * sizeof(zmq_pollitem_t));
 	}
 	return len;
 }
@@ -108,6 +108,8 @@ static void poller_remove_item(ZMQ_Poller *this, int idx) {
 	this->free_list = idx;
 	/* mark this slot as a free slot. */
 	items[idx].events = FREE_ITEM_EVENTS_TAG;
+	/* clear old revents. */
+	items[idx].revents = 0;
 }
 
 static int poller_get_free_item(ZMQ_Poller *this) {
@@ -161,15 +163,14 @@ static int poller_compact_items(ZMQ_Poller *this) {
 	items = this->items;
 	next = 0;
 	/* find first free slot. */
-	while(items[next].events != FREE_ITEM_EVENTS_TAG) {
-		assert(next <= old_count);
+	while(next < count && items[next].events != FREE_ITEM_EVENTS_TAG) {
 		++next;
 	}
 
 	/* move non-free slots into free slot. */
 	count = next;
 	++next;
-	while(next <= old_count) {
+	while(next < old_count) {
 		if(items[next].events != FREE_ITEM_EVENTS_TAG) {
 			/* found non-free slot, move it to the current free slot. */
 			items[count] = items[next];
@@ -183,6 +184,7 @@ static int poller_compact_items(ZMQ_Poller *this) {
 	this->count = count;
 	this->free_list = -1; /* free list is now empty. */
 
+	assert(count <= this->len);
 	return count;
 }
 
