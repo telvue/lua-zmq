@@ -19,42 +19,29 @@
 -- THE SOFTWARE.
 
 if not arg[3] then
-    print("usage: lua remote_lat.lua <connect-to> <message-size> <roundtrip-count>")
+    print("usage: lua remote_thr.lua <connect-to> <message-size> <message-count>")
     os.exit()
 end
 
 local connect_to = arg[1]
 local message_size = tonumber(arg[2])
-local roundtrip_count = tonumber(arg[3])
+local message_count = tonumber(arg[3])
 
 local zmq = require"zmq"
 
-local socket = require"socket"
-local time = socket.gettime
-
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.REQ)
+local s = ctx:socket(zmq.PUSH)
 s:connect(connect_to)
 
 local data = ("0"):rep(message_size)
 local msg = zmq.zmq_msg_t.init_size(message_size)
 
-local start_time = time()
-
-for i = 1, roundtrip_count do
+for i = 1, message_count do
+	msg:set_data(data)
 	assert(s:send_msg(msg))
-	assert(s:recv_msg(msg))
-	assert(msg:size() == message_size, "Invalid message size")
 end
 
-local end_time = time()
+--os.execute("sleep " .. 10)
 
 s:close()
 ctx:term()
-
-local elapsed = end_time - start_time
-local latency = elapsed * 1000000 / roundtrip_count / 2
-
-print(string.format("message size: %i [B]", message_size))
-print(string.format("roundtrip count: %i", roundtrip_count))
-print(string.format("mean latency: %.3f [us]", latency))

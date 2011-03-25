@@ -19,11 +19,11 @@
 -- THE SOFTWARE.
 
 if #arg < 1 then
-    print("usage: lua " .. arg[0] .. " [message-size] [roundtrip-count] [bind-to] [connect-to]")
+    print("usage: lua " .. arg[0] .. " [message-size] [message-count] [bind-to] [connect-to]")
 end
 
 local message_size = tonumber(arg[1] or 1)
-local roundtrip_count = tonumber(arg[2] or 100000)
+local message_count = tonumber(arg[2] or 100000)
 local bind_to = arg[3] or 'inproc://thread_lat_test'
 local connect_to = arg[4] or 'inproc://thread_lat_test'
 
@@ -34,44 +34,62 @@ local socket = require"socket"
 local time = socket.gettime
 
 local child_code = [[
-	local connect_to, message_size, roundtrip_count = ...
+	local connect_to, message_size, message_count = ...
 	print("child:", ...)
 
 	local zmq = require"zmq"
 	local zthreads = require"zmq.threads"
+	local socket = require"socket"
+	local time = socket.gettime
 
 	local ctx = zthreads.get_parent_ctx()
-	local s = ctx:socket(zmq.REP)
+	local s = ctx:socket(zmq.PUSH)
+	s:setopt(zmq.HWM, message_count/4)
 	s:connect(connect_to)
 
-	local msg = zmq.zmq_msg_t()
+	local data = ("0"):rep(message_size)
+	local msg = zmq.zmq_msg_t.init_size(message_size)
 
-	for i = 1, roundtrip_count do
-		assert(s:recv_msg(msg))
-		assert(msg:size() == message_size, "Invalid message size")
+	local start_time = time()
+
+	for i = 1, message_count do
+		msg:set_data(data)
 		assert(s:send_msg(msg))
 	end
 
+	local end_time = time()
+
 	s:close()
+
+	local elapsed = end_time - start_time
+	if elapsed == 0 then elapsed = 1 end
+	
+	local throughput = message_count / elapsed
+	local megabits = throughput * message_size * 8 / 1000000
+	
+	print(string.format("Sender mean throughput: %i [msg/s]", throughput))
+	print(string.format("Sender mean throughput: %.3f [Mb/s]", megabits))
+
+	print("sending thread finished.")
 ]]
 
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.REQ)
+local s = ctx:socket(zmq.PULL)
 s:bind(bind_to)
 
-local child_thread = zthreads.runstring(ctx, child_code, connect_to, message_size, roundtrip_count)
+print(string.format("message size: %i [B]", message_size))
+print(string.format("message count: %i", message_count))
+
+local child_thread = zthreads.runstring(ctx, child_code, connect_to, message_size, message_count)
 child_thread:start()
 
-local data = ("0"):rep(message_size)
-local msg = zmq.zmq_msg_t.init_size(message_size)
-
-print(string.format("message size: %i [B]", message_size))
-print(string.format("roundtrip count: %i", roundtrip_count))
+local msg
+msg = zmq.zmq_msg_t()
+assert(s:recv_msg(msg))
 
 local start_time = time()
 
-for i = 1, roundtrip_count do
-	assert(s:send_msg(msg))
+for i = 1, message_count - 1 do
 	assert(s:recv_msg(msg))
 	assert(msg:size() == message_size, "Invalid message size")
 end
@@ -83,7 +101,11 @@ child_thread:join()
 ctx:term()
 
 local elapsed = end_time - start_time
-local latency = elapsed * 1000000 / roundtrip_count / 2
+if elapsed == 0 then elapsed = 1 end
 
-print(string.format("mean latency: %.3f [us]", latency))
+local throughput = message_count / elapsed
+local megabits = throughput * message_size * 8 / 1000000
+
+print(string.format("mean throughput: %i [msg/s]", throughput))
+print(string.format("mean throughput: %.3f [Mb/s]", megabits))
 

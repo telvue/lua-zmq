@@ -18,60 +18,34 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
-if #arg < 1 then
-    print("usage: lua " .. arg[0] .. " [message-size] [roundtrip-count] [bind-to] [connect-to]")
+if not arg[3] then
+    print("usage: lua local_thr.lua <bind-to> <message-size> <message-count>")
+    os.exit()
 end
 
-local message_size = tonumber(arg[1] or 1)
-local roundtrip_count = tonumber(arg[2] or 100000)
-local bind_to = arg[3] or 'inproc://thread_lat_test'
-local connect_to = arg[4] or 'inproc://thread_lat_test'
+local bind_to = arg[1]
+local message_size = tonumber(arg[2])
+local message_count = tonumber(arg[3])
 
 local zmq = require"zmq"
-local zthreads = require"zmq.threads"
 
 local socket = require"socket"
 local time = socket.gettime
 
-local child_code = [[
-	local connect_to, message_size, roundtrip_count = ...
-	print("child:", ...)
-
-	local zmq = require"zmq"
-	local zthreads = require"zmq.threads"
-
-	local ctx = zthreads.get_parent_ctx()
-	local s = ctx:socket(zmq.REP)
-	s:connect(connect_to)
-
-	local msg = zmq.zmq_msg_t()
-
-	for i = 1, roundtrip_count do
-		assert(s:recv_msg(msg))
-		assert(msg:size() == message_size, "Invalid message size")
-		assert(s:send_msg(msg))
-	end
-
-	s:close()
-]]
-
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.REQ)
+local s = ctx:socket(zmq.PULL)
 s:bind(bind_to)
 
-local child_thread = zthreads.runstring(ctx, child_code, connect_to, message_size, roundtrip_count)
-child_thread:start()
-
-local data = ("0"):rep(message_size)
-local msg = zmq.zmq_msg_t.init_size(message_size)
-
 print(string.format("message size: %i [B]", message_size))
-print(string.format("roundtrip count: %i", roundtrip_count))
+print(string.format("message count: %i", message_count))
+
+local msg
+msg = zmq.zmq_msg_t()
+assert(s:recv_msg(msg))
 
 local start_time = time()
 
-for i = 1, roundtrip_count do
-	assert(s:send_msg(msg))
+for i = 1, message_count - 1 do
 	assert(s:recv_msg(msg))
 	assert(msg:size() == message_size, "Invalid message size")
 end
@@ -79,11 +53,14 @@ end
 local end_time = time()
 
 s:close()
-child_thread:join()
 ctx:term()
 
 local elapsed = end_time - start_time
-local latency = elapsed * 1000000 / roundtrip_count / 2
+if elapsed == 0 then elapsed = 1 end
 
-print(string.format("mean latency: %.3f [us]", latency))
+local throughput = message_count / elapsed
+local megabits = throughput * message_size * 8 / 1000000
+
+print(string.format("mean throughput: %i [msg/s]", throughput))
+print(string.format("mean throughput: %.3f [Mb/s]", megabits))
 

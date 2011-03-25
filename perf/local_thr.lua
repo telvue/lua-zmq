@@ -19,20 +19,15 @@
 -- THE SOFTWARE.
 
 if not arg[3] then
-    print("usage: lua local_thr.lua <bind-to> <message-size> <message-count> [<zmq-module>]")
+    print("usage: lua local_thr.lua <bind-to> <message-size> <message-count>")
     os.exit()
 end
 
 local bind_to = arg[1]
 local message_size = tonumber(arg[2])
 local message_count = tonumber(arg[3])
-local mod = arg[4] or "zmq"
-if mod == 'disable_ffi' then
-	disable_ffi = true
-	mod = 'zmq'
-end
 
-local zmq = require(mod)
+local zmq = require"zmq"
 
 local socket = require"socket"
 local time = socket.gettime
@@ -41,6 +36,9 @@ local ctx = zmq.init(1)
 local s = ctx:socket(zmq.SUB)
 s:setopt(zmq.SUBSCRIBE, "");
 s:bind(bind_to)
+
+print(string.format("message size: %i [B]", message_size))
+print(string.format("message count: %i", message_count))
 
 local msg
 msg = zmq.zmq_msg_t()
@@ -64,7 +62,6 @@ if elapsed == 0 then elapsed = 1 end
 local throughput = message_count / elapsed
 local megabits = throughput * message_size * 8 / 1000000
 
-print(string.format("message size: %i [B]", message_size))
-print(string.format("message count: %i", message_count))
 print(string.format("mean throughput: %i [msg/s]", throughput))
 print(string.format("mean throughput: %.3f [Mb/s]", megabits))
+
