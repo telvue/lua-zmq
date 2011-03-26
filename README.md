@@ -6,6 +6,9 @@ Lua bindings to zeromq2.
 Installation
 ============
 
+It is recommended to either compile Lua with the "-pthread" flag or preload libpthread.so on Linux when using this module ([See this glibc bug report](http://sourceware.org/bugzilla/show_bug.cgi?id=10652):
+	$ LD_PRELOAD=/lib/libpthread.so lua
+
 With LuaRocks 2.0.4.1:
 	$ sudo luarocks install https://github.com/Neopallium/lua-zmq/raw/master/rockspecs/lua-zmq-scm-1.rockspec
 
