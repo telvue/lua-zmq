@@ -54,7 +54,7 @@ end
 
 function poller_mt:poll(timeout)
 	local poller = self.poller
-	local status, err = poller:poll(-1)
+	local status, err = poller:poll(timeout)
 	if not status then
 		return false, err
 	end

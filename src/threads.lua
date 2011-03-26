@@ -47,7 +47,9 @@ local func
 -- copy parent ZeroMQ context to this child thread.
 local zmq = require"zmq"
 local zthreads = require"zmq.threads"
-zthreads.set_parent_ctx(zmq.init_ctx(parent_ctx))
+if parent_ctx then
+	zthreads.set_parent_ctx(zmq.init_ctx(parent_ctx))
+end
 
 -- create global 'arg'
 arg = { select(4, ...) }
@@ -69,7 +71,9 @@ return func(select(4, ...))
 
 local function new_thread(ctx, action, action_arg, ...)
 	-- convert ZMQ_Ctx to lightuserdata.
-	ctx = ctx:lightuserdata()
+	if ctx then
+		ctx = ctx:lightuserdata()
+	end
 	local thread = llthreads.new(bootstrap_code, action, action_arg, ctx, ...)
 	return setmetatable({
 		thread = thread,
