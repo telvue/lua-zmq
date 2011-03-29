@@ -1045,8 +1045,6 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "}\n"
 "local C = ffi.load(os_lib_table[ffi.os] or \"zmq\")\n"
 "\n"
-"local OBJ_UDATA_CTX_SHOULD_FREE = (OBJ_UDATA_LAST_FLAG * 2)\n"
-"\n"
 "local get_zmq_strerror = ffi.new(\"get_zmq_strerror_func\", _priv[\"get_zmq_strerror\"])\n"
 "\n"
 "local C_get_zmq_strerror = get_zmq_strerror\n"
@@ -1574,7 +1572,8 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "-- Start \"ZMQ_Ctx\" FFI interface\n"
 "-- method: term\n"
 "function ZMQ_Ctx_meth.term(self)\n"
-"  local this = obj_type_ZMQ_Ctx_check(self)\n"
+"  local this,this_flags = obj_type_ZMQ_Ctx_delete(self)\n"
+"  if(band(this_flags,OBJ_UDATA_FLAG_OWN) == 0) then return end\n"
 "  local rc_zmq_term\n"
 "  rc_zmq_term = C.zmq_term(this)\n"
 "  -- check for error.\n"
@@ -1623,7 +1622,6 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "\n"
 "-- method: init_ctx\n"
 "function zmq_pub.init_ctx(ptr)\n"
-"  local ctx_flags = OBJ_UDATA_FLAG_OWN\n"
 "  local ctx\n"
 "	local p_type = type(ptr)\n"
 "	if p_type == 'userdata' then\n"
@@ -1638,7 +1636,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  if (nil == ctx) then\n"
 "    ctx_err =   get_zmq_strerror()\n"
 "  else\n"
-"    ctx =   obj_type_ZMQ_Ctx_push(ctx, ctx_flags)\n"
+"    ctx =   obj_type_ZMQ_Ctx_push(ctx, 0)\n"
 "  end\n"
 "  return ctx, ctx_err\n"
 "end\n"
@@ -1913,8 +1911,6 @@ static int poller_poll(ZMQ_Poller *this, long timeout) {
 
 
 typedef void * ZMQ_Ctx;
-
-#define OBJ_UDATA_CTX_SHOULD_FREE (OBJ_UDATA_LAST_FLAG << 1)
 
 /*
  * This wrapper function is to make the EAGAIN/ETERM error messages more like
@@ -2678,22 +2674,12 @@ static int ZMQ_Poller__count__meth(lua_State *L) {
   return 1;
 }
 
-/* method: delete */
-static int ZMQ_Ctx__delete__meth(lua_State *L) {
-  int this_flags = 0;
-  ZMQ_Ctx * this = obj_type_ZMQ_Ctx_delete(L,1,&(this_flags));
-  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
-	if(this_flags & OBJ_UDATA_CTX_SHOULD_FREE) {
-		zmq_term(this);
-	}
-
-  return 0;
-}
-
 /* method: term */
 static int ZMQ_Ctx__term__meth(lua_State *L) {
-  ZMQ_Ctx * this = obj_type_ZMQ_Ctx_check(L,1);
+  int this_flags = 0;
+  ZMQ_Ctx * this = obj_type_ZMQ_Ctx_delete(L,1,&(this_flags));
   ZMQ_Error rc_zmq_term = 0;
+  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
   rc_zmq_term = zmq_term(this);
   /* check for error. */
   if((-1 == rc_zmq_term)) {
@@ -2766,7 +2752,6 @@ static int zmq__init__func(lua_State *L) {
 
 /* method: init_ctx */
 static int zmq__init_ctx__func(lua_State *L) {
-  int ctx_flags = OBJ_UDATA_FLAG_OWN;
   ZMQ_Ctx ctx;
 	if(lua_isuserdata(L, 1)) {
 		ctx = lua_touserdata(L, 1);
@@ -2778,7 +2763,7 @@ static int zmq__init_ctx__func(lua_State *L) {
     lua_pushnil(L);
     lua_pushstring(L, get_zmq_strerror());
   } else {
-    obj_type_ZMQ_Ctx_push(L, ctx, ctx_flags);
+    obj_type_ZMQ_Ctx_push(L, ctx, 0);
   }
   return 1;
 }
@@ -2935,7 +2920,7 @@ static const luaL_reg obj_ZMQ_Ctx_methods[] = {
 };
 
 static const luaL_reg obj_ZMQ_Ctx_metas[] = {
-  {"__gc", ZMQ_Ctx__delete__meth},
+  {"__gc", ZMQ_Ctx__term__meth},
   {"__tostring", obj_udata_default_tostring},
   {"__eq", obj_udata_default_equal},
   {NULL, NULL}

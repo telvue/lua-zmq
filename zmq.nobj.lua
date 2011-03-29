@@ -36,13 +36,6 @@ Windows = "libzmq", -- lib name for on windows.
 },
 
 c_source[[
-#define OBJ_UDATA_CTX_SHOULD_FREE (OBJ_UDATA_LAST_FLAG << 1)
-]],
-ffi_source[[
-local OBJ_UDATA_CTX_SHOULD_FREE = (OBJ_UDATA_LAST_FLAG * 2)
-]],
-
-c_source[[
 /*
  * This wrapper function is to make the EAGAIN/ETERM error messages more like
  * what is returned by LuaSocket.
@@ -167,7 +160,7 @@ c_function "init" {
 },
 c_function "init_ctx" {
 	var_in{ "<any>", "ptr" },
-	var_out{ "ZMQ_Ctx", "!ctx" },
+	var_out{ "ZMQ_Ctx", "ctx" },
 	c_source[[
 	if(lua_isuserdata(L, ${ptr::idx})) {
 		${ctx} = lua_touserdata(L, ${ptr::idx});

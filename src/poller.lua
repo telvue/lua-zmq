@@ -56,9 +56,10 @@ function poller_mt:poll(timeout)
 	local poller = self.poller
 	local status, err = poller:poll(timeout)
 	if not status then
-		return false, err
+		return nil, err
 	end
 	local callbacks = self.callbacks
+	local count = 0
 	while true do
 		local sock, revents = poller:next_revents()
 		if not sock then
@@ -69,15 +70,20 @@ function poller_mt:poll(timeout)
 			error("Missing callback for sock:" .. tostring(sock))
 		end
 		cb(sock, revents)
+		count = count + 1
 	end
-	return true
+	return count
 end
 
 function poller_mt:start()
 	self.is_running = true
 	while self.is_running do
-		self:poll(-1)
+		local status, err = self:poll(-1)
+		if not status then
+			return false, err
+		end
 	end
+	return true
 end
 
 function poller_mt:stop()

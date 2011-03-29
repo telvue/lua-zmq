@@ -27,14 +27,7 @@ typedef void * ZMQ_Ctx;
 	c_source [[
 typedef void * ZMQ_Ctx;
 ]],
-	destructor {
-		c_source[[
-	if(${this_flags} & OBJ_UDATA_CTX_SHOULD_FREE) {
-		zmq_term(${this});
-	}
-]]
-	},
-	method "term" {
+	destructor "term" {
 		c_method_call "ZMQ_Error"  "zmq_term" {}
 	},
 	method "lightuserdata" {
