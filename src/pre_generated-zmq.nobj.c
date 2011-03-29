@@ -165,7 +165,7 @@ typedef struct ffi_export_symbol {
 #define obj_type_ZMQ_Socket_check(L, _index) \
 	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Socket))
 #define obj_type_ZMQ_Socket_delete(L, _index, flags) \
-	obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Socket), flags)
+	obj_udata_luadelete_weak(L, _index, &(obj_type_ZMQ_Socket), flags)
 #define obj_type_ZMQ_Socket_push(L, obj, flags) \
 	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Socket), flags)
 
@@ -181,7 +181,7 @@ typedef struct ffi_export_symbol {
 #define obj_type_ZMQ_Ctx_check(L, _index) \
 	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_Ctx))
 #define obj_type_ZMQ_Ctx_delete(L, _index, flags) \
-	obj_udata_luadelete(L, _index, &(obj_type_ZMQ_Ctx), flags)
+	obj_udata_luadelete_weak(L, _index, &(obj_type_ZMQ_Ctx), flags)
 #define obj_type_ZMQ_Ctx_push(L, obj, flags) \
 	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Ctx), flags)
 
@@ -329,6 +329,26 @@ static FUNC_UNUSED void obj_udata_luapush(lua_State *L, void *obj, obj_type *typ
 	lua_pushlightuserdata(L, type);
 	lua_rawget(L, LUA_REGISTRYINDEX); /* type's metatable. */
 	lua_setmetatable(L, -2);
+}
+
+static FUNC_UNUSED void *obj_udata_luadelete_weak(lua_State *L, int _index, obj_type *type, int *flags) {
+	void *obj;
+	obj_udata *ud = obj_udata_luacheck_internal(L, _index, &(obj), type);
+	*flags = ud->flags;
+	/* null userdata. */
+	ud->obj = NULL;
+	ud->flags = 0;
+	/* clear the metatable to invalidate userdata. */
+	lua_pushnil(L);
+	lua_setmetatable(L, _index);
+	/* get objects weak table. */
+	lua_pushlightuserdata(L, obj_udata_weak_ref_key);
+	lua_rawget(L, LUA_REGISTRYINDEX); /* weak ref table. */
+	/* remove object from weak table. */
+	lua_pushlightuserdata(L, obj);
+	lua_pushnil(L);
+	lua_rawset(L, -3);
+	return obj;
 }
 
 static FUNC_UNUSED void obj_udata_luapush_weak(lua_State *L, void *obj, obj_type *type, int flags) {
@@ -767,6 +787,20 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "	return ud_obj\n"
 "end\n"
 "\n"
+"local function obj_udata_luadelete_weak(ud_obj, type_mt)\n"
+"	local ud = obj_udata_luacheck_internal(ud_obj, type_mt)\n"
+"	local obj, flags = ud.obj, ud.flags\n"
+"	-- null userdata.\n"
+"	ud.obj = nil\n"
+"	ud.flags = 0\n"
+"	-- invalid userdata, by setting the metatable to nil.\n"
+"	d_setmetatable(ud_obj, nil)\n"
+"	-- remove object from weak ref. table.\n"
+"	local obj_key = tonumber(ffi.cast('uintptr_t', obj))\n"
+"	weak_objects[obj_key] = nil\n"
+"	return obj, flags\n"
+"end\n"
+"\n"
 "local function obj_udata_luapush_weak(obj, type_mt, obj_type, flags)\n"
 "	if obj == nil then return end\n"
 "\n"
@@ -965,7 +999,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "\n"
 "local function obj_type_ZMQ_Socket_delete(ud_obj)\n"
 "	ZMQ_Socket_objects[ud_obj] = nil\n"
-"	return obj_udata_luadelete(ud_obj, ZMQ_Socket_mt)\n"
+"	return obj_udata_luadelete_weak(ud_obj, ZMQ_Socket_mt)\n"
 "end\n"
 "\n"
 "local function obj_type_ZMQ_Socket_push(c_obj, flags)\n"
@@ -1024,7 +1058,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "\n"
 "local function obj_type_ZMQ_Ctx_delete(ud_obj)\n"
 "	ZMQ_Ctx_objects[ud_obj] = nil\n"
-"	return obj_udata_luadelete(ud_obj, ZMQ_Ctx_mt)\n"
+"	return obj_udata_luadelete_weak(ud_obj, ZMQ_Ctx_mt)\n"
 "end\n"
 "\n"
 "local function obj_type_ZMQ_Ctx_push(c_obj, flags)\n"
