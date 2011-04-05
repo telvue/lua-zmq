@@ -35,7 +35,6 @@ local time = socket.gettime
 
 local child_code = [[
 	local connect_to, message_size, roundtrip_count = ...
-	print("child:", ...)
 
 	local zmq = require"zmq"
 	local zthreads = require"zmq.threads"
