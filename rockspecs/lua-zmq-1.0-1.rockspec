@@ -1,7 +1,8 @@
-package = "lua-zmq-threads"
-version = "scm-0"
+package = "lua-zmq"
+version = "1.0-1"
 source = {
 	url = "git://github.com/Neopallium/lua-zmq.git",
+	branch = "v1.0",
 }
 description = {
 	summary = "Lua bindings to zeromq2, with LuaJIT2 FFI support.",
@@ -9,14 +10,19 @@ description = {
 	license = "MIT/X11",
 }
 dependencies = {
-	"lua-zmq",
-	"lua-llthreads",
+	"lua >= 5.1",
 }
 build = {
-	type = "none",
-	install = {
-		lua = {
-			['zmq.threads'] = "src/threads.lua",
+	type = "builtin",
+	modules = {
+		zmq = {
+			sources = {"src/pre_generated-zmq.nobj.c"},
+			libraries = {"zmq"},
 		},
 	},
+	install = {
+		lua = {
+			['zmq.poller'] = "src/poller.lua",
+		}
+	}
 }
