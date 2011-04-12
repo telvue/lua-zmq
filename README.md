@@ -10,14 +10,22 @@ It is recommended to either compile Lua with the "-pthread" flag or preload libp
 
 	$ LD_PRELOAD=/lib/libpthread.so lua
 
-lua-zmq 1.0 release:
+
+Release 1.0
+-----------
+
+lua-zmq:
 
 	$ sudo luarocks install lua-zmq
 
-lua-zmq-threads 1.0 release:
+lua-zmq-threads:
 
 	$ sudo luarocks install lua-llthreads
 	$ sudo luarocks install lua-zmq-threads
+
+
+Latest Git revision
+-------------------
 
 With LuaRocks 2.0.4.1:
 
