@@ -7,16 +7,29 @@ Installation
 ============
 
 It is recommended to either compile Lua with the "-pthread" flag or preload libpthread.so on Linux when using this module ([See this glibc bug report](http://sourceware.org/bugzilla/show_bug.cgi?id=10652):
+
 	$ LD_PRELOAD=/lib/libpthread.so lua
 
+lua-zmq 1.0 release:
+
+	$ sudo luarocks install lua-zmq
+
+lua-zmq-threads 1.0 release:
+
+	$ sudo luarocks install lua-llthreads
+	$ sudo luarocks install lua-zmq-threads
+
 With LuaRocks 2.0.4.1:
+
 	$ sudo luarocks install https://github.com/Neopallium/lua-zmq/raw/master/rockspecs/lua-zmq-scm-1.rockspec
 
 For threads support:
+
 	$ sudo luarocks install https://github.com/Neopallium/lua-llthreads/raw/master/rockspecs/lua-llthreads-scm-0.rockspec
 	$ sudo luarocks install https://github.com/Neopallium/lua-zmq/raw/master/rockspecs/lua-zmq-threads-scm-0.rockspec
 
 With CMake:
+
 	$ git clone git://github.com/Neopallium/lua-zmq.git
 	$ cd lua-zmq ; mkdir build ; cd build
 	$ cmake ..
