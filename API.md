@@ -2,81 +2,176 @@
 
 ZMQ_CONSTANT_NAME in the C API turns into zmq.CONSTANT_NAME in Lua.
 
-## version
+## version()
 
 Reports 0MQ library version.
 See [zmq_version(3)](http://api.zeromq.org/zmq_version.html).
 
-zmq.version()
+	zmq.version()
 
-## init
+## init(io_threads)
 
 Initialises ØMQ context.
 See [zmq_init(3)](http://api.zeromq.org/zmq_init.html).
 
-zmq.init(io_threads)  
+	zmq.init(io_threads)  
 
-## term
+# ZMQ Context methods
+
+## term()
 
 Terminates ØMQ context.
 See [zmq_term(3)](http://api.zeromq.org/zmq_term.html).
 
-ctx:term()
+	ctx:term()
 
-## socket
+## socket(type)
 
 Creates ØMQ socket.
 See [zmq_socket(3)](http://api.zeromq.org/zmq_socket.html).
 
-ctx:socket(type)
+	ctx:socket(type)
 
-## close
+# ZMQ Socket methods
+
+## close()
 
 Destroys ØMQ socket.
 See [zmq_close(3)](http://api.zeromq.org/zmq_close.html).
 
-s:close()
+	sock:close()
 
-## setopt
+## setopt(option, optval)
 
 Sets a specified option on a ØMQ socket.
 See [zmq_setsockopt(3)](http://api.zeromq.org/zmq_setsockopt.html).
 
-s:setopt(option, optval)
+	sock:setopt(option, optval)
 
-## getopt
+## getopt(option)
 
 Gets a specified option of a ØMQ socket.
 See [zmq_getsockopt(3)](http://api.zeromq.org/zmq_getsockopt.html).
 
-s:getopt(option)
+	sock:getopt(option)
 
-## bind
+## bind(addr)
 
 Binds the socket to the specified address.
 See [zmq_bind(3)](http://api.zeromq.org/zmq_bind.html).
 
-s:bind(addr)
+	sock:bind(addr)
 
-## connect
+## connect(addr)
 
 Connect the socket to the specified address.
 See [zmq_connect(3)](http://api.zeromq.org/zmq_connect.html).
 
-s:connect(addr)
+	sock:connect(addr)
 
-## send
+## send(msg [, flags])
 
-Sends a message.
+Sends a message(Lua string).
 See [zmq_send(3)](http://api.zeromq.org/zmq_send.html).
 
-s:send(msg)  
-s:send(msg, flags)
+	sock:send(msg)
+	sock:send(msg, flags)
 
-## recv
+## recv([flags])
 
-Retrieves a message from the socket.
+Retrieves a message(a Lua string) from the socket.
 See [zmq_recv(3)](http://api.zeromq.org/zmq_recv.html).
 
-s:recv()  
-s:recv(flags)
+	msg = sock:recv()
+	msg = sock:recv(flags)
+
+# Zero-copy send_msg/recv_msg methods
+
+These methods allow Zero-copy transfer of a message from one ZMQ socket to another.
+
+## send_msg(msg [, flags])
+
+Sends a message from a zmq_msg_t object.
+See [zmq_send(3)](http://api.zeromq.org/zmq_send.html).
+
+	sock:send_msg(msg)
+	sock:send_msg(msg, flags)
+
+## recv_msg(msg [, flags])
+
+Retrieves a message from the socket into a zmq_msg_t object.
+See [zmq_recv(3)](http://api.zeromq.org/zmq_recv.html).
+
+	sock:recv_msg(msg)
+	sock:recv_msg(msg, flags)
+
+# zmq_msg_t object constructors
+
+## zmq_msg_t.init()
+
+Create an empty zmq_msg_t object.
+See [zmq_msg_init(3)](http://api.zeromq.org/zmq_msg_init.html).
+
+	local msg = zmq_msg_t.init()
+
+## zmq_msg_t.init_size(size)
+
+Create an empty zmq_msg_t object and allow space for a message of `size` bytes.
+See [zmq_msg_init_size(3)](http://api.zeromq.org/zmq_msg_init_size.html).
+
+	local msg = zmq_msg_t.init_size(size)
+	msg:set_data(data) -- if (#data ~= size) then the message will be re-sized.
+
+## zmq_msg_t.init_data(data)
+
+Create an zmq_msg_t object initialized with the content of `data`.
+
+	local msg = zmq_msg_t.init_data(data)
+	-- that is the same as:
+	local msg = zmq_msg_t.init_size(#data)
+	msg:set_data(data)
+
+# zmq_msg_t object methods
+
+## move(src)
+
+Move the contents of one message into another.
+See [zmq_msg_move(3)](http://api.zeromq.org/zmq_msg_move.html).
+
+	msg1:move(msg2) -- move contents from msg2 -> msg1
+
+## copy(src)
+
+Copy the contents of one message into another.
+See [zmq_msg_copy(3)](http://api.zeromq.org/zmq_msg_copy.html).
+
+	msg1:copy(msg2) -- copy contents from msg2 -> msg1
+
+## set_data(data)
+
+Change the message contents.
+See [zmq_msg_data(3)](http://api.zeromq.org/zmq_msg_data.html).
+
+	msg:set_data(data) -- replace/set the message contents to `data`
+
+## data()
+
+Get the message contents.
+See [zmq_msg_data(3)](http://api.zeromq.org/zmq_msg_data.html).
+
+	local data = msg:data() -- get the message contents
+
+## size()
+
+Get the size of the message contents.
+See [zmq_msg_size(3)](http://api.zeromq.org/zmq_msg_size.html).
+
+	local size = msg:size()
+
+## close()
+
+Free the message contents and invalid the zmq_msg_t userdata object.
+See [zmq_msg_close(3)](http://api.zeromq.org/zmq_msg_close.html).
+
+	msg:close() -- free message contents and invalid `msg`
+

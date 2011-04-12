@@ -1,7 +1,13 @@
 About
 =====
 
-Lua bindings to zeromq2.
+Lua bindings to zeromq2.  Check out the [ZeroMQ Guide with Lua examples](http://zguide.zeromq.org/lua:all).
+
+API
+===
+
+See [API.md](https://github.com/Neopallium/lua-zmq/blob/master/API.md) and
+[ØMQ docs](http://api.zero.mq/2-1-3:_start).
 
 Installation
 ============
@@ -89,8 +95,3 @@ Latency benchmark:
 
 You can disable the FFI support when running under LuaJIT2 by passing a forth parameter `disable_ffi`
 
-API
-===
-
-See [API.md](http://github.com/iamaleksey/lua-zmq/blob/master/API.md) and
-[ØMQ docs](http://api.zero.mq/2-1-1:_start).
