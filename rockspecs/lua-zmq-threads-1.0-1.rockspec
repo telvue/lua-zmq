@@ -1,7 +1,8 @@
 package = "lua-zmq-threads"
 version = "1.0-1"
 source = {
-	url = "git://github.com/Neopallium/lua-zmq.git"
+	url = "git://github.com/Neopallium/lua-zmq.git",
+	branch = "v1.0",
 }
 description = {
 	summary = "Lua bindings to zeromq2, with LuaJIT2 FFI support.",
