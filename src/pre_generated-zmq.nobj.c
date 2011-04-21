@@ -1742,13 +1742,11 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 
 typedef void * ZMQ_Socket;
 
-#if VERSION_2_1
 #ifdef _WIN32
 #include <winsock2.h>
 typedef SOCKET socket_t;
 #else
 typedef int socket_t;
-#endif
 #endif
 
 /* socket option types. */
