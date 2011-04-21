@@ -175,3 +175,63 @@ See [zmq_msg_close(3)](http://api.zeromq.org/zmq_msg_close.html).
 
 	msg:close() -- free message contents and invalid `msg`
 
+# FD/ZMQ Socket poller object
+
+The poller object wraps [zmq_poll()](http://api.zeromq.org/zmq_poll.html) to allow polling
+of events from multiple ZMQ Sockets and/or normal sockets.
+
+## zmq.poller([pre_alloc])
+
+Construct a new poller object.  The optional `pre_alloc` parameter is to pre-size the poller
+for the number of sockets it will handle (the size can grow dynamically as-needed).
+
+	local poller = zmq.poller(64)
+
+## add(socket|fd, events, callback)
+
+Add a ZMQ Socket or fd to the poller.  `callback` will be called when one of the events
+in `events` is raised.
+
+	poller:add(sock, zmq.POLLIN, function(sock) print(sock, " is readable.") end)
+	poller:add(sock, zmq.POLLOUT, function(sock) print(sock, " is writable.") end)
+	poller:add(sock, zmq.POLLIN+zmq.POLLOUT, function(sock, revents)
+		print(sock, " has events:", revents)
+	end)
+
+## modify(socket|fd, events, callback)
+
+Change the `events` or `callback` for a socket/fd.
+
+	-- first wait for read event.
+	poller:add(sock, zmq.POLLIN, function(sock) print(sock, " is readable.") end)
+	-- now wait for write event.
+	poller:modify(sock, zmq.POLLOUT, function(sock) print(sock, " is writable.") end)
+
+## remove(socket|fd)
+
+Remove a socket/fd from the poller.
+
+	-- first wait for read event.
+	poller:add(sock, zmq.POLLIN, function(sock) print(sock, " is readable.") end)
+	-- remove socket from poller.
+	poller:remove(sock)
+
+## poll(timeout)
+
+Wait `timeout` microseconds for events on the registered sockets (timeout = -1, means
+wait indefinitely).  If any events happen, then those events are dispatched.
+
+	poller:poll(1000000) -- wait 1 second for events.
+
+## start()
+
+Start an event loop waiting for and dispatching events.
+
+	poller:start()
+
+## stop()
+
+Stop the event loop.
+
+	poller:stop()
+
