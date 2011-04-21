@@ -9,6 +9,11 @@ API
 See [API.md](https://github.com/Neopallium/lua-zmq/blob/master/API.md) and
 [ØMQ docs](http://api.zero.mq/2-1-3:_start).
 
+Requirements
+============
+
+* ZeroMQ version 2.1.x.  Might work with some 2.0.x versions (2.0.6 and lower are not supported).
+
 Installation
 ============
 

@@ -1742,7 +1742,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 
 /* detect really old ZeroMQ 2.0.x series. */
 #if !defined(ZMQ_RCVMORE)
-#error "Your version of ZeroMQ is too, old."
+#error "Your version of ZeroMQ is too old.  Please upgrade to version 2.1 or to the latest 2.0.x"
 #endif
 
 typedef void * ZMQ_Socket;
