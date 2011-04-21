@@ -16,6 +16,7 @@ Requirements
 * Might work with some 2.0.x versions (2.0.6 and lower are not supported).
 
 For Ubuntu 10.10 users:
+
 * The version of ZeroMQ (2.0.6beta) that comes with Ubuntu 10.10 will not work with these bindings.  Please upgrade to [version 2.1](http://fanf42.blogspot.com/2011/02/installing-zeromq-and-java-bindings-on.html).
 
 Installation
