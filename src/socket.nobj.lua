@@ -33,6 +33,11 @@ typedef void * ZMQ_Socket;
 #endif
 #endif
 
+/* detect really old ZeroMQ 2.0.x series. */
+#if !defined(ZMQ_RCVMORE)
+#error "Your version of ZeroMQ is too, old."
+#endif
+
 typedef void * ZMQ_Socket;
 
 #ifdef _WIN32

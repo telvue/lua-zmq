@@ -46,9 +46,11 @@ static const char *get_zmq_strerror() {
 	case EAGAIN:
 		return "timeout";
 		break;
+#if defined(ETERM)
 	case ETERM:
 		return "closed";
 		break;
+#endif
 	default:
 		break;
 	}
