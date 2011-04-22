@@ -19,20 +19,15 @@
 -- THE SOFTWARE.
 
 if not arg[3] then
-    print("usage: lua remote_thr.lua <connect-to> <message-size> <message-count> [<zmq-module>]")
+    print("usage: lua remote_thr.lua <connect-to> <message-size> <message-count>")
     os.exit()
 end
 
 local connect_to = arg[1]
 local message_size = tonumber(arg[2])
 local message_count = tonumber(arg[3])
-local mod = arg[4] or "zmq"
-if mod == 'disable_ffi' then
-	disable_ffi = true
-	mod = 'zmq'
-end
 
-local zmq = require(mod)
+local zmq = require'zmq'
 
 local ctx = zmq.init(1)
 local s = ctx:socket(zmq.PUB)

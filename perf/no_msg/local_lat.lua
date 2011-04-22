@@ -19,20 +19,15 @@
 -- THE SOFTWARE.
 
 if not arg[3] then
-    print("usage: lua local_lat.lua <bind-to> <message-size> <roundtrip-count> [<zmq-module>]")
+    print("usage: lua local_lat.lua <bind-to> <message-size> <roundtrip-count>")
     os.exit()
 end
 
 local bind_to = arg[1]
 local message_size = tonumber(arg[2])
 local roundtrip_count = tonumber(arg[3])
-local mod = arg[4] or "zmq"
-if mod == 'disable_ffi' then
-	disable_ffi = true
-	mod = 'zmq'
-end
 
-local zmq = require(mod)
+local zmq = require'zmq'
 
 local ctx = zmq.init(1)
 local s = ctx:socket(zmq.REP)
