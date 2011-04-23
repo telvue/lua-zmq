@@ -1139,7 +1139,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_msg_close_err\n"
 "  if (-1 == rc_zmq_msg_close) then\n"
 "    rc_zmq_msg_close_err =   error_code__ZMQ_Error__push(rc_zmq_msg_close)\n"
-"    rc_zmq_msg_close = false\n"
+"    rc_zmq_msg_close = nil\n"
 "  else\n"
 "    rc_zmq_msg_close = true\n"
 "  end\n"
@@ -1155,7 +1155,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_msg_close_err\n"
 "  if (-1 == rc_zmq_msg_close) then\n"
 "    rc_zmq_msg_close_err =   error_code__ZMQ_Error__push(rc_zmq_msg_close)\n"
-"    rc_zmq_msg_close = false\n"
+"    rc_zmq_msg_close = nil\n"
 "  else\n"
 "    rc_zmq_msg_close = true\n"
 "  end\n"
@@ -1172,7 +1172,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_msg_move_err\n"
 "  if (-1 == rc_zmq_msg_move) then\n"
 "    rc_zmq_msg_move_err =   error_code__ZMQ_Error__push(rc_zmq_msg_move)\n"
-"    rc_zmq_msg_move = false\n"
+"    rc_zmq_msg_move = nil\n"
 "  else\n"
 "    rc_zmq_msg_move = true\n"
 "  end\n"
@@ -1189,7 +1189,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_msg_copy_err\n"
 "  if (-1 == rc_zmq_msg_copy) then\n"
 "    rc_zmq_msg_copy_err =   error_code__ZMQ_Error__push(rc_zmq_msg_copy)\n"
-"    rc_zmq_msg_copy = false\n"
+"    rc_zmq_msg_copy = nil\n"
 "  else\n"
 "    rc_zmq_msg_copy = true\n"
 "  end\n"
@@ -1217,7 +1217,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local err_err\n"
 "  if (-1 == err) then\n"
 "    err_err =   error_code__ZMQ_Error__push(err)\n"
-"    err = false\n"
+"    err = nil\n"
 "  else\n"
 "    err = true\n"
 "  end\n"
@@ -1252,7 +1252,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local err_err\n"
 "  if (-1 == err) then\n"
 "    err_err =   error_code__ZMQ_Error__push(err)\n"
-"    err = false\n"
+"    err = nil\n"
 "  else\n"
 "    err = true\n"
 "  end\n"
@@ -1294,7 +1294,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_close_err\n"
 "  if (-1 == rc_zmq_close) then\n"
 "    rc_zmq_close_err =   error_code__ZMQ_Error__push(rc_zmq_close)\n"
-"    rc_zmq_close = false\n"
+"    rc_zmq_close = nil\n"
 "  else\n"
 "    rc_zmq_close = true\n"
 "  end\n"
@@ -1311,7 +1311,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_bind_err\n"
 "  if (-1 == rc_zmq_bind) then\n"
 "    rc_zmq_bind_err =   error_code__ZMQ_Error__push(rc_zmq_bind)\n"
-"    rc_zmq_bind = false\n"
+"    rc_zmq_bind = nil\n"
 "  else\n"
 "    rc_zmq_bind = true\n"
 "  end\n"
@@ -1328,7 +1328,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_connect_err\n"
 "  if (-1 == rc_zmq_connect) then\n"
 "    rc_zmq_connect_err =   error_code__ZMQ_Error__push(rc_zmq_connect)\n"
-"    rc_zmq_connect = false\n"
+"    rc_zmq_connect = nil\n"
 "  else\n"
 "    rc_zmq_connect = true\n"
 "  end\n"
@@ -1387,7 +1387,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local err_err\n"
 "  if (-1 == err) then\n"
 "    err_err =   error_code__ZMQ_Error__push(err)\n"
-"    err = false\n"
+"    err = nil\n"
 "  else\n"
 "    err = true\n"
 "  end\n"
@@ -1462,7 +1462,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_send_err\n"
 "  if (-1 == rc_zmq_send) then\n"
 "    rc_zmq_send_err =   error_code__ZMQ_Error__push(rc_zmq_send)\n"
-"    rc_zmq_send = false\n"
+"    rc_zmq_send = nil\n"
 "  else\n"
 "    rc_zmq_send = true\n"
 "  end\n"
@@ -1483,7 +1483,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local err_err\n"
 "  if (-1 == err) then\n"
 "    err_err =   error_code__ZMQ_Error__push(err)\n"
-"    err = false\n"
+"    err = nil\n"
 "  else\n"
 "    err = true\n"
 "  end\n"
@@ -1501,7 +1501,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_recv_err\n"
 "  if (-1 == rc_zmq_recv) then\n"
 "    rc_zmq_recv_err =   error_code__ZMQ_Error__push(rc_zmq_recv)\n"
-"    rc_zmq_recv = false\n"
+"    rc_zmq_recv = nil\n"
 "  else\n"
 "    rc_zmq_recv = true\n"
 "  end\n"
@@ -1575,7 +1575,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local err_err\n"
 "  if (-1 == err) then\n"
 "    err_err =   error_code__ZMQ_Error__push(err)\n"
-"    err = false\n"
+"    err = nil\n"
 "  else\n"
 "    err = true\n"
 "  end\n"
@@ -1645,7 +1645,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_term_err\n"
 "  if (-1 == rc_zmq_term) then\n"
 "    rc_zmq_term_err =   error_code__ZMQ_Error__push(rc_zmq_term)\n"
-"    rc_zmq_term = false\n"
+"    rc_zmq_term = nil\n"
 "  else\n"
 "    rc_zmq_term = true\n"
 "  end\n"
@@ -1717,7 +1717,7 @@ static const char zmq_ffi_lua_code[] = "-- try loading luajit's ffi\n"
 "  local rc_zmq_device_err\n"
 "  if (-1 == rc_zmq_device) then\n"
 "    rc_zmq_device_err =   error_code__ZMQ_Error__push(rc_zmq_device)\n"
-"    rc_zmq_device = false\n"
+"    rc_zmq_device = nil\n"
 "  else\n"
 "    rc_zmq_device = true\n"
 "  end\n"
@@ -2087,7 +2087,7 @@ static int zmq_msg_t__delete__meth(lua_State *L) {
   rc_zmq_msg_close = zmq_msg_close(this);
   /* check for error. */
   if((-1 == rc_zmq_msg_close)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_msg_close);
   } else {
     lua_pushboolean(L, 1);
@@ -2103,7 +2103,7 @@ static int zmq_msg_t__close__meth(lua_State *L) {
   rc_zmq_msg_close = zmq_msg_close(this);
   /* check for error. */
   if((-1 == rc_zmq_msg_close)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_msg_close);
   } else {
     lua_pushboolean(L, 1);
@@ -2120,7 +2120,7 @@ static int zmq_msg_t__move__meth(lua_State *L) {
   rc_zmq_msg_move = zmq_msg_move(this, src);
   /* check for error. */
   if((-1 == rc_zmq_msg_move)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_msg_move);
   } else {
     lua_pushboolean(L, 1);
@@ -2137,7 +2137,7 @@ static int zmq_msg_t__copy__meth(lua_State *L) {
   rc_zmq_msg_copy = zmq_msg_copy(this, src);
   /* check for error. */
   if((-1 == rc_zmq_msg_copy)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_msg_copy);
   } else {
     lua_pushboolean(L, 1);
@@ -2166,7 +2166,7 @@ static int zmq_msg_t__set_data__meth(lua_State *L) {
 
   /* check for error. */
   if((-1 == err)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, err);
   } else {
     lua_pushboolean(L, 1);
@@ -2201,7 +2201,7 @@ static int zmq_msg_t__set_size__meth(lua_State *L) {
 
   /* check for error. */
   if((-1 == err)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, err);
   } else {
     lua_pushboolean(L, 1);
@@ -2240,7 +2240,7 @@ static int ZMQ_Socket__close__meth(lua_State *L) {
   rc_zmq_close = zmq_close(this);
   /* check for error. */
   if((-1 == rc_zmq_close)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_close);
   } else {
     lua_pushboolean(L, 1);
@@ -2258,7 +2258,7 @@ static int ZMQ_Socket__bind__meth(lua_State *L) {
   rc_zmq_bind = zmq_bind(this, addr);
   /* check for error. */
   if((-1 == rc_zmq_bind)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_bind);
   } else {
     lua_pushboolean(L, 1);
@@ -2276,7 +2276,7 @@ static int ZMQ_Socket__connect__meth(lua_State *L) {
   rc_zmq_connect = zmq_connect(this, addr);
   /* check for error. */
   if((-1 == rc_zmq_connect)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_connect);
   } else {
     lua_pushboolean(L, 1);
@@ -2345,7 +2345,7 @@ static int ZMQ_Socket__setopt__meth(lua_State *L) {
 
   /* check for error. */
   if((-1 == err)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, err);
   } else {
     lua_pushboolean(L, 1);
@@ -2470,7 +2470,7 @@ static int ZMQ_Socket__send_msg__meth(lua_State *L) {
   rc_zmq_send = zmq_send(this, msg, flags);
   /* check for error. */
   if((-1 == rc_zmq_send)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_send);
   } else {
     lua_pushboolean(L, 1);
@@ -2490,7 +2490,7 @@ static int ZMQ_Socket__send__meth(lua_State *L) {
 
   /* check for error. */
   if((-1 == err)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, err);
   } else {
     lua_pushboolean(L, 1);
@@ -2508,7 +2508,7 @@ static int ZMQ_Socket__recv_msg__meth(lua_State *L) {
   rc_zmq_recv = zmq_recv(this, msg, flags);
   /* check for error. */
   if((-1 == rc_zmq_recv)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_recv);
   } else {
     lua_pushboolean(L, 1);
@@ -2686,7 +2686,7 @@ static int ZMQ_Poller__poll__meth(lua_State *L) {
 
   /* check for error. */
   if((-1 == err)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, err);
   } else {
     lua_pushboolean(L, 1);
@@ -2753,7 +2753,7 @@ static int ZMQ_Ctx__term__meth(lua_State *L) {
   rc_zmq_term = zmq_term(this);
   /* check for error. */
   if((-1 == rc_zmq_term)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_term);
   } else {
     lua_pushboolean(L, 1);
@@ -2847,7 +2847,7 @@ static int zmq__device__func(lua_State *L) {
   rc_zmq_device = zmq_device(device, insock, outsock);
   /* check for error. */
   if((-1 == rc_zmq_device)) {
-    lua_pushboolean(L, 0);
+    lua_pushnil(L);
       error_code__ZMQ_Error__push(L, rc_zmq_device);
   } else {
     lua_pushboolean(L, 1);
