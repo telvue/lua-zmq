@@ -400,7 +400,7 @@ int zmq_poll(zmq_pollitem_t *items, int nitems, long timeout);
 	-- did we find a pending event?
 	if(idx >= 0) then
 		-- push the event's sock/fd.
-		if(${this}.items[idx].socket ~= NULL) then
+		if(${this}.items[idx].socket ~= nil) then
 			sock = obj_type_ZMQ_Socket_push(${this}.items[idx].socket, 0)
 		else
 			sock = tonumber(${this}.items[idx].fd)
