@@ -9,7 +9,8 @@ set(BUILD_SHARED_LIBS TRUE)
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-set(INSTALL_CMOD share/lua/cmod CACHE PATH "Directory to install Lua binary modules (configure lua via LUA_CPATH)")
+set(INSTALL_LMOD share/lua/5.1 CACHE PATH "Directory to install Lua source modules (configure lua via LUA_PATH)")
+set(INSTALL_CMOD lib/lua/5.1 CACHE PATH "Directory to install Lua binary modules (configure lua via LUA_CPATH)")
 set(LUA_NATIVE_OBJECTS_PATH ../LuaNativeObjects CACHE PATH
 				"Directory to LuaNativeObjects bindings generator.")
 set(USE_PRE_GENERATED_BINDINGS TRUE CACHE BOOL
@@ -45,6 +46,12 @@ set(LUA_ZMQ_SRC
 	zmq.nobj.lua
 )
 
+## LuaZMQ Lua source modules
+set(LUA_ZMQ_SRC_LUA_MODS
+	src/poller.lua
+	src/threads.lua
+)
+
 if(${USE_PRE_GENERATED_BINDINGS})
 	set(LUA_ZMQ_SRC src/pre_generated-zmq.nobj.c)
 else()
@@ -60,4 +67,7 @@ set_target_properties(lua-zmq PROPERTIES OUTPUT_NAME zmq)
 
 install(TARGETS lua-zmq
         DESTINATION "${INSTALL_CMOD}")
+
+install(FILES ${LUA_ZMQ_SRC_LUA_MODS}
+        DESTINATION "${INSTALL_LMOD}/zmq")
 
