@@ -136,6 +136,7 @@ subfiles {
 "src/socket.nobj.lua",
 "src/poller.nobj.lua",
 "src/ctx.nobj.lua",
+"src/stopwatch.nobj.lua",
 },
 
 --
@@ -186,6 +187,16 @@ c_function "device" {
 		{ "int", "device", "ZMQ_Socket", "insock", "ZMQ_Socket", "outsock" },
 },
 
+--
+-- zmq_utils.h
+--
+include "zmq_utils.h",
+c_function "stopwatch_start" {
+	c_call "!ZMQ_StopWatch" "zmq_stopwatch_start" {},
+},
+c_function "sleep" {
+	c_call "void" "zmq_sleep" { "int", "seconds_" },
+},
 --
 -- This dump function is for getting a copy of the FFI-based bindings code and is
 -- only for debugging.

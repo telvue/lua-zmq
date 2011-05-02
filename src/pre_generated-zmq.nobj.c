@@ -12,6 +12,7 @@
 
 #include <string.h>
 #include "zmq.h"
+#include "zmq_utils.h"
 
 
 #define REG_PACKAGE_IS_CONSTRUCTOR 0
@@ -175,6 +176,9 @@ static obj_type obj_types[] = {
 #define obj_type_id_ZMQ_Ctx 3
 #define obj_type_ZMQ_Ctx (obj_types[obj_type_id_ZMQ_Ctx])
   { NULL, 3, OBJ_TYPE_FLAG_WEAK_REF, "ZMQ_Ctx" },
+#define obj_type_id_ZMQ_StopWatch 4
+#define obj_type_ZMQ_StopWatch (obj_types[obj_type_id_ZMQ_StopWatch])
+  { NULL, 4, OBJ_TYPE_FLAG_WEAK_REF, "ZMQ_StopWatch" },
   {NULL, -1, 0, NULL},
 };
 
@@ -706,6 +710,13 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 #define obj_type_ZMQ_Ctx_push(L, obj, flags) \
 	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_Ctx), flags)
 
+#define obj_type_ZMQ_StopWatch_check(L, _index) \
+	obj_udata_luacheck(L, _index, &(obj_type_ZMQ_StopWatch))
+#define obj_type_ZMQ_StopWatch_delete(L, _index, flags) \
+	obj_udata_luadelete_weak(L, _index, &(obj_type_ZMQ_StopWatch), flags)
+#define obj_type_ZMQ_StopWatch_push(L, obj, flags) \
+	obj_udata_luapush_weak(L, (void *)obj, &(obj_type_ZMQ_StopWatch), flags)
+
 
 
 
@@ -966,9 +977,19 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "ZMQ_Socket zmq_socket(ZMQ_Ctx * this, int type);\n"
 "\n"
+"typedef void * ZMQ_StopWatch;\n"
+"\n"
+"unsigned long zmq_stopwatch_stop (ZMQ_StopWatch watch_);\n"
+"\n"
+"ZMQ_StopWatch zmq_stopwatch_start();\n"
+"\n"
 "ZMQ_Ctx zmq_init(int io_threads);\n"
 "\n"
 "ZMQ_Error zmq_device(int device, ZMQ_Socket insock, ZMQ_Socket outsock);\n"
+"\n"
+"ZMQ_StopWatch zmq_stopwatch_start();\n"
+"\n"
+"void zmq_sleep(int seconds_);\n"
 "\n"
 "\n"
 "]]\n"
@@ -1096,6 +1117,38 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "function obj_type_ZMQ_Ctx_push(c_obj, flags)\n"
 "	local ud_obj = obj_udata_luapush_weak(c_obj, ZMQ_Ctx_mt, ZMQ_Ctx_type, flags)\n"
 "	ZMQ_Ctx_objects[ud_obj] = c_obj\n"
+"	return ud_obj\n"
+"end\n"
+"end)()\n"
+"\n"
+"\n"
+"local obj_type_ZMQ_StopWatch_check\n"
+"local obj_type_ZMQ_StopWatch_delete\n"
+"local obj_type_ZMQ_StopWatch_push\n"
+"\n"
+"(function()\n"
+"local ZMQ_StopWatch_mt = _priv.ZMQ_StopWatch\n"
+"local ZMQ_StopWatch_objects = setmetatable({}, { __mode = \"k\" })\n"
+"function obj_type_ZMQ_StopWatch_check(ud_obj)\n"
+"	local c_obj = ZMQ_StopWatch_objects[ud_obj]\n"
+"	if c_obj == nil then\n"
+"		-- cdata object not in cache\n"
+"		c_obj = obj_udata_luacheck(ud_obj, ZMQ_StopWatch_mt)\n"
+"		c_obj = ffi.cast(\"ZMQ_StopWatch *\", c_obj) -- cast from 'void *'\n"
+"		ZMQ_StopWatch_objects[ud_obj] = c_obj\n"
+"	end\n"
+"	return c_obj\n"
+"end\n"
+"\n"
+"function obj_type_ZMQ_StopWatch_delete(ud_obj)\n"
+"	ZMQ_StopWatch_objects[ud_obj] = nil\n"
+"	return obj_udata_luadelete_weak(ud_obj, ZMQ_StopWatch_mt)\n"
+"end\n"
+"\n"
+"local ZMQ_StopWatch_type = ffi.cast(\"obj_type *\", ZMQ_StopWatch_mt[\".type\"])\n"
+"function obj_type_ZMQ_StopWatch_push(c_obj, flags)\n"
+"	local ud_obj = obj_udata_luapush_weak(c_obj, ZMQ_StopWatch_mt, ZMQ_StopWatch_type, flags)\n"
+"	ZMQ_StopWatch_objects[ud_obj] = c_obj\n"
 "	return ud_obj\n"
 "end\n"
 "end)()\n"
@@ -1679,6 +1732,32 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "-- End \"ZMQ_Ctx\" FFI interface\n"
 "\n"
+"\n"
+"-- Start \"ZMQ_StopWatch\" FFI interface\n"
+"-- method: start\n"
+"function _pub.ZMQ_StopWatch.start()\n"
+"  local this_flags = OBJ_UDATA_FLAG_OWN\n"
+"  local this\n"
+"  local rc_zmq_stopwatch_start\n"
+"  rc_zmq_stopwatch_start = C.zmq_stopwatch_start()\n"
+"  this =   obj_type_ZMQ_StopWatch_push(this, this_flags)\n"
+"  rc_zmq_stopwatch_start =   obj_type_ZMQ_StopWatch_push(rc_zmq_stopwatch_start, 0)\n"
+"  return this, rc_zmq_stopwatch_start\n"
+"end\n"
+"\n"
+"-- method: stop\n"
+"function _meth.ZMQ_StopWatch.stop(self)\n"
+"  local this,this_flags = obj_type_ZMQ_StopWatch_delete(self)\n"
+"  if(band(this_flags,OBJ_UDATA_FLAG_OWN) == 0) then return end\n"
+"  local usecs\n"
+"	usecs = tonumber(C.zmq_stopwatch_stop(this))\n"
+"\n"
+"  usecs = usecs\n"
+"  return usecs\n"
+"end\n"
+"\n"
+"-- End \"ZMQ_StopWatch\" FFI interface\n"
+"\n"
 "-- method: init\n"
 "function _pub.zmq.init(io_threads)\n"
 "  \n"
@@ -1731,6 +1810,22 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "    rc_zmq_device = true\n"
 "  end\n"
 "  return rc_zmq_device, rc_zmq_device_err\n"
+"end\n"
+"\n"
+"-- method: stopwatch_start\n"
+"function _pub.zmq.stopwatch_start()\n"
+"  local rc_zmq_stopwatch_start_flags = OBJ_UDATA_FLAG_OWN\n"
+"  local rc_zmq_stopwatch_start\n"
+"  rc_zmq_stopwatch_start = C.zmq_stopwatch_start()\n"
+"  rc_zmq_stopwatch_start =   obj_type_ZMQ_StopWatch_push(rc_zmq_stopwatch_start, rc_zmq_stopwatch_start_flags)\n"
+"  return rc_zmq_stopwatch_start\n"
+"end\n"
+"\n"
+"-- method: sleep\n"
+"function _pub.zmq.sleep(seconds_)\n"
+"  \n"
+"  C.zmq_sleep(seconds_)\n"
+"  return \n"
 "end\n"
 "\n"
 "";
@@ -1988,6 +2083,8 @@ static int poller_poll(ZMQ_Poller *this, long timeout) {
 
 
 typedef void * ZMQ_Ctx;
+
+typedef void * ZMQ_StopWatch;
 
 /*
  * This wrapper function is to make the EAGAIN/ETERM error messages more like
@@ -2797,6 +2894,29 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
   return 1;
 }
 
+/* method: start */
+static int ZMQ_StopWatch__start__meth(lua_State *L) {
+  int this_flags = OBJ_UDATA_FLAG_OWN;
+  ZMQ_StopWatch * this;
+  ZMQ_StopWatch rc_zmq_stopwatch_start;
+  rc_zmq_stopwatch_start = zmq_stopwatch_start();
+  obj_type_ZMQ_StopWatch_push(L, this, this_flags);
+  obj_type_ZMQ_StopWatch_push(L, rc_zmq_stopwatch_start, 0);
+  return 2;
+}
+
+/* method: stop */
+static int ZMQ_StopWatch__stop__meth(lua_State *L) {
+  int this_flags = 0;
+  ZMQ_StopWatch * this = obj_type_ZMQ_StopWatch_delete(L,1,&(this_flags));
+  unsigned long usecs = 0;
+  if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
+	usecs = zmq_stopwatch_stop(this);
+
+  lua_pushinteger(L, usecs);
+  return 1;
+}
+
 /* method: version */
 static int zmq__version__func(lua_State *L) {
 	int major, minor, patch;
@@ -2863,6 +2983,22 @@ static int zmq__device__func(lua_State *L) {
     lua_pushnil(L);
   }
   return 2;
+}
+
+/* method: stopwatch_start */
+static int zmq__stopwatch_start__func(lua_State *L) {
+  int rc_zmq_stopwatch_start_flags = OBJ_UDATA_FLAG_OWN;
+  ZMQ_StopWatch rc_zmq_stopwatch_start;
+  rc_zmq_stopwatch_start = zmq_stopwatch_start();
+  obj_type_ZMQ_StopWatch_push(L, rc_zmq_stopwatch_start, rc_zmq_stopwatch_start_flags);
+  return 1;
+}
+
+/* method: sleep */
+static int zmq__sleep__func(lua_State *L) {
+  int seconds_ = luaL_checkinteger(L,1);
+  zmq_sleep(seconds_);
+  return 0;
 }
 
 /* method: dump_ffi */
@@ -3017,11 +3153,42 @@ static const obj_const obj_ZMQ_Ctx_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
+static const luaL_reg obj_ZMQ_StopWatch_pub_funcs[] = {
+  {"start", ZMQ_StopWatch__start__meth},
+  {NULL, NULL}
+};
+
+static const luaL_reg obj_ZMQ_StopWatch_methods[] = {
+  {"stop", ZMQ_StopWatch__stop__meth},
+  {NULL, NULL}
+};
+
+static const luaL_reg obj_ZMQ_StopWatch_metas[] = {
+  {"__gc", ZMQ_StopWatch__stop__meth},
+  {"__tostring", obj_udata_default_tostring},
+  {"__eq", obj_udata_default_equal},
+  {NULL, NULL}
+};
+
+static const obj_base obj_ZMQ_StopWatch_bases[] = {
+  {-1, NULL}
+};
+
+static const obj_field obj_ZMQ_StopWatch_fields[] = {
+  {NULL, 0, 0, 0}
+};
+
+static const obj_const obj_ZMQ_StopWatch_constants[] = {
+  {NULL, NULL, 0.0 , 0}
+};
+
 static const luaL_reg zmq_function[] = {
   {"version", zmq__version__func},
   {"init", zmq__init__func},
   {"init_ctx", zmq__init_ctx__func},
   {"device", zmq__device__func},
+  {"stopwatch_start", zmq__stopwatch_start__func},
+  {"sleep", zmq__sleep__func},
   {"dump_ffi", zmq__dump_ffi__func},
   {NULL, NULL}
 };
@@ -3088,6 +3255,7 @@ static const reg_sub_module reg_sub_modules[] = {
   { &(obj_type_ZMQ_Socket), 0, obj_ZMQ_Socket_pub_funcs, obj_ZMQ_Socket_methods, obj_ZMQ_Socket_metas, obj_ZMQ_Socket_bases, obj_ZMQ_Socket_fields, obj_ZMQ_Socket_constants},
   { &(obj_type_ZMQ_Poller), 0, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants},
   { &(obj_type_ZMQ_Ctx), 0, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants},
+  { &(obj_type_ZMQ_StopWatch), 0, obj_ZMQ_StopWatch_pub_funcs, obj_ZMQ_StopWatch_methods, obj_ZMQ_StopWatch_metas, obj_ZMQ_StopWatch_bases, obj_ZMQ_StopWatch_fields, obj_ZMQ_StopWatch_constants},
   {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL}
 };
 
