@@ -37,7 +37,11 @@ typedef int bool;
 
 #define FUNC_UNUSED
 
+#define LUA_NOBJ_API __declspec(dllexport)
+
 #else
+
+#define LUA_NOBJ_API LUALIB_API
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -3118,7 +3122,7 @@ static void create_object_instance_cache(lua_State *L) {
 	lua_rawset(L, LUA_REGISTRYINDEX);  /* create reference to weak table. */
 }
 
-LUALIB_API int luaopen_zmq(lua_State *L) {
+LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 	const reg_sub_module *reg = reg_sub_modules;
 	const luaL_Reg *submodules = submodule_libs;
 	int priv_table = -1;
