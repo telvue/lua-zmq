@@ -29,16 +29,13 @@ local roundtrip_count = tonumber(arg[3])
 
 local zmq = require'zmq'
 
-local socket = require"socket"
-local time = socket.gettime
-
 local ctx = zmq.init(1)
 local s = ctx:socket(zmq.REQ)
 s:connect(connect_to)
 
 local msg = ("0"):rep(message_size)
 
-local start_time = time()
+local timer = zmq.stopwatch_start()
 
 for i = 1, roundtrip_count do
 	s:send(msg)
@@ -46,13 +43,12 @@ for i = 1, roundtrip_count do
 	assert(#msg == message_size, "Invalid message size")
 end
 
-local end_time = time()
+local elapsed = timer:stop()
 
 s:close()
 ctx:term()
 
-local elapsed = end_time - start_time
-local latency = elapsed * 1000000 / roundtrip_count / 2
+local latency = elapsed / roundtrip_count / 2
 
 print(string.format("message size: %i [B]", message_size))
 print(string.format("roundtrip count: %i", roundtrip_count))

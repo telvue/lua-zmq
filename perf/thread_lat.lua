@@ -30,9 +30,6 @@ local connect_to = arg[4] or 'inproc://thread_lat_test'
 local zmq = require"zmq"
 local zthreads = require"zmq.threads"
 
-local socket = require"socket"
-local time = socket.gettime
-
 local child_code = [[
 	local connect_to, message_size, roundtrip_count = ...
 
@@ -67,7 +64,7 @@ local msg = zmq.zmq_msg_t.init_size(message_size)
 print(string.format("message size: %i [B]", message_size))
 print(string.format("roundtrip count: %i", roundtrip_count))
 
-local start_time = time()
+local timer = zmq.stopwatch_start()
 
 for i = 1, roundtrip_count do
 	assert(s:send_msg(msg))
@@ -75,14 +72,13 @@ for i = 1, roundtrip_count do
 	assert(msg:size() == message_size, "Invalid message size")
 end
 
-local end_time = time()
+local elapsed = timer:stop()
 
 s:close()
 child_thread:join()
 ctx:term()
 
-local elapsed = end_time - start_time
-local latency = elapsed * 1000000 / roundtrip_count / 2
+local latency = elapsed / roundtrip_count / 2
 
 print(string.format("mean latency: %.3f [us]", latency))
 
