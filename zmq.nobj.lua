@@ -159,11 +159,11 @@ c_function "version" {
 ]],
 },
 c_function "init" {
-	c_call "!ZMQ_Ctx" "zmq_init" { "int", "io_threads" },
+	c_call "!ZMQ_Ctx *" "zmq_init" { "int", "io_threads" },
 },
 c_function "init_ctx" {
 	var_in{ "<any>", "ptr" },
-	var_out{ "ZMQ_Ctx", "ctx" },
+	var_out{ "ZMQ_Ctx *", "ctx" },
 	c_source[[
 	if(lua_isuserdata(L, ${ptr::idx})) {
 		${ctx} = lua_touserdata(L, ${ptr::idx});
@@ -184,7 +184,7 @@ c_function "init_ctx" {
 },
 c_function "device" {
 	c_call "ZMQ_Error" "zmq_device"
-		{ "int", "device", "ZMQ_Socket", "insock", "ZMQ_Socket", "outsock" },
+		{ "int", "device", "ZMQ_Socket *", "insock", "ZMQ_Socket *", "outsock" },
 },
 
 --
@@ -192,7 +192,7 @@ c_function "device" {
 --
 include "zmq_utils.h",
 c_function "stopwatch_start" {
-	c_call "!ZMQ_StopWatch" "zmq_stopwatch_start" {},
+	c_call "!ZMQ_StopWatch *" "zmq_stopwatch_start" {},
 },
 c_function "sleep" {
 	c_call "void" "zmq_sleep" { "int", "seconds_" },

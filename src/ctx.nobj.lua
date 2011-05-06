@@ -20,12 +20,8 @@
 
 object "ZMQ_Ctx" {
 	error_on_null = "get_zmq_strerror()",
-	ffi_cdef [[
-typedef void * ZMQ_Ctx;
-]],
-
 	c_source [[
-typedef void * ZMQ_Ctx;
+typedef struct ZMQ_Ctx ZMQ_Ctx;
 ]],
 	destructor "term" {
 		c_method_call "ZMQ_Error"  "zmq_term" {}
@@ -37,7 +33,7 @@ typedef void * ZMQ_Ctx;
 ]]
 	},
 	method "socket" {
-		c_method_call "!ZMQ_Socket"  "zmq_socket" { "int", "type"}
+		c_method_call "!ZMQ_Socket *"  "zmq_socket" { "int", "type"}
 	},
 }
 

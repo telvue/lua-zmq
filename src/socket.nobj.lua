@@ -20,9 +20,6 @@
 
 object "ZMQ_Socket" {
 	error_on_null = "get_zmq_strerror()",
-	ffi_cdef[[
-typedef void * ZMQ_Socket;
-]],
 	c_source [[
 /* detect zmq version >= 2.1.0 */
 #define VERSION_2_1 0
@@ -38,7 +35,7 @@ typedef void * ZMQ_Socket;
 #error "Your version of ZeroMQ is too old.  Please upgrade to version 2.1 or to the latest 2.0.x"
 #endif
 
-typedef void * ZMQ_Socket;
+typedef struct ZMQ_Socket ZMQ_Socket;
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -347,7 +344,7 @@ local ZMQ_EVENTS = _M.EVENTS
 	},
 	-- create helper function for `zmq_send`
 	c_source[[
-static ZMQ_Error simple_zmq_send(ZMQ_Socket sock, const char *data, size_t data_len, int flags) {
+static ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
 	ZMQ_Error err;
 	zmq_msg_t msg;
 	/* initialize message */
@@ -365,7 +362,7 @@ static ZMQ_Error simple_zmq_send(ZMQ_Socket sock, const char *data, size_t data_
 ]],
 	-- export helper function.
 	ffi_export_function "ZMQ_Error" "simple_zmq_send"
-		"(ZMQ_Socket sock, const char *data, size_t data_len, int flags)",
+		"(ZMQ_Socket *sock, const char *data, size_t data_len, int flags)",
 	method "send" {
 		var_in{ "const char *", "data" },
 		var_in{ "int", "flags?" },

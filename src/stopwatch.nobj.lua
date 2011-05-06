@@ -20,25 +20,14 @@
 
 object "ZMQ_StopWatch" {
 	include "zmq_utils.h",
-	ffi_cdef[[
-typedef void * ZMQ_StopWatch;
-
-unsigned long zmq_stopwatch_stop (ZMQ_StopWatch watch_);
-]],
 	c_source[[
-typedef void * ZMQ_StopWatch;
+typedef struct ZMQ_StopWatch ZMQ_StopWatch;
 ]],
 	constructor "start" {
-		c_call "ZMQ_StopWatch" "zmq_stopwatch_start" {},
+		c_call "ZMQ_StopWatch *" "zmq_stopwatch_start" {},
 	},
 	destructor "stop" {
-		var_out{ "unsigned long", "usecs" },
-		c_source[[
-	${usecs} = zmq_stopwatch_stop(${this});
-]],
-		ffi_source[[
-	${usecs} = tonumber(C.zmq_stopwatch_stop(${this}))
-]],
+		c_method_call { "unsigned long", "usecs", ffi_wrap = 'tonumber' } "zmq_stopwatch_stop" {},
 	},
 }
 

@@ -894,18 +894,27 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "end\n"
 "\n"
 "ffi.cdef[[\n"
+"typedef struct zmq_msg_t zmq_msg_t;\n"
+"typedef struct ZMQ_Socket ZMQ_Socket;\n"
+"typedef struct ZMQ_Poller ZMQ_Poller;\n"
+"typedef struct ZMQ_Ctx ZMQ_Ctx;\n"
+"typedef struct ZMQ_StopWatch ZMQ_StopWatch;\n"
+"\n"
+"]]\n"
+"\n"
+"ffi.cdef[[\n"
 "typedef const char * (*get_zmq_strerror_func)();\n"
 "\n"
 "typedef int ZMQ_Error;\n"
 "\n"
 "\n"
-"typedef struct zmq_msg_t\n"
+"struct zmq_msg_t\n"
 "{\n"
 "	void *content;\n"
 "	unsigned char flags;\n"
 "	unsigned char vsm_size;\n"
 "	unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */\n"
-"} zmq_msg_t;\n"
+"};\n"
 "\n"
 "typedef void (zmq_free_fn) (void *data, void *hint);\n"
 "\n"
@@ -926,8 +935,6 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "size_t zmq_msg_size(zmq_msg_t * this);\n"
 "\n"
-"typedef void * ZMQ_Socket;\n"
-"\n"
 "ZMQ_Error zmq_close(ZMQ_Socket * this);\n"
 "\n"
 "ZMQ_Error zmq_bind(ZMQ_Socket * this, const char * addr);\n"
@@ -939,13 +946,13 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "ZMQ_Error zmq_send(ZMQ_Socket * this, zmq_msg_t * msg, int flags);\n"
 "\n"
-"typedef ZMQ_Error (*simple_zmq_send_func)(ZMQ_Socket sock, const char *data, size_t data_len, int flags);\n"
+"typedef ZMQ_Error (*simple_zmq_send_func)(ZMQ_Socket *sock, const char *data, size_t data_len, int flags);\n"
 "\n"
 "ZMQ_Error zmq_recv(ZMQ_Socket * this, zmq_msg_t * msg, int flags);\n"
 "\n"
 "typedef int socket_t;\n"
 "typedef struct zmq_pollitem_t {\n"
-"	ZMQ_Socket socket;\n"
+"	ZMQ_Socket *socket;\n"
 "	socket_t fd;\n"
 "	short events;\n"
 "	short revents;\n"
@@ -953,13 +960,13 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "int zmq_poll(zmq_pollitem_t *items, int nitems, long timeout);\n"
 "\n"
-"typedef struct ZMQ_Poller {\n"
+"struct ZMQ_Poller {\n"
 "	zmq_pollitem_t *items;\n"
 "	int    next;\n"
 "	int    count;\n"
 "	int    free_list;\n"
 "	int    len;\n"
-"} ZMQ_Poller;\n"
+"};\n"
 "\n"
 "typedef int (*poller_find_sock_item_func)(ZMQ_Poller *this, ZMQ_Socket *sock);\n"
 "\n"
@@ -971,28 +978,37 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "typedef void (*poller_remove_item_func)(ZMQ_Poller *this, int idx);\n"
 "\n"
-"typedef void * ZMQ_Ctx;\n"
-"\n"
 "ZMQ_Error zmq_term(ZMQ_Ctx * this);\n"
 "\n"
-"ZMQ_Socket zmq_socket(ZMQ_Ctx * this, int type);\n"
+"ZMQ_Socket * zmq_socket(ZMQ_Ctx * this, int type);\n"
 "\n"
-"typedef void * ZMQ_StopWatch;\n"
+"ZMQ_StopWatch * zmq_stopwatch_start();\n"
 "\n"
-"unsigned long zmq_stopwatch_stop (ZMQ_StopWatch watch_);\n"
+"unsigned long zmq_stopwatch_stop(ZMQ_StopWatch * this);\n"
 "\n"
-"ZMQ_StopWatch zmq_stopwatch_start();\n"
+"ZMQ_Ctx * zmq_init(int io_threads);\n"
 "\n"
-"ZMQ_Ctx zmq_init(int io_threads);\n"
+"ZMQ_Error zmq_device(int device, ZMQ_Socket * insock, ZMQ_Socket * outsock);\n"
 "\n"
-"ZMQ_Error zmq_device(int device, ZMQ_Socket insock, ZMQ_Socket outsock);\n"
-"\n"
-"ZMQ_StopWatch zmq_stopwatch_start();\n"
+"ZMQ_StopWatch * zmq_stopwatch_start();\n"
 "\n"
 "void zmq_sleep(int seconds_);\n"
 "\n"
 "\n"
 "]]\n"
+"\n"
+"local _pub = {}\n"
+"local _meth = {}\n"
+"for obj_name,mt in pairs(_priv) do\n"
+"	if type(mt) == 'table' and mt.__index then\n"
+"		_meth[obj_name] = mt.__index\n"
+"	end\n"
+"end\n"
+"_pub.zmq = _M\n"
+"for obj_name,pub in pairs(_M) do\n"
+"	_pub[obj_name] = pub\n"
+"end\n"
+"\n"
 "\n"
 "local obj_type_zmq_msg_t_check\n"
 "local obj_type_zmq_msg_t_delete\n"
@@ -1154,25 +1170,24 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "end)()\n"
 "\n"
 "\n"
-"local _pub = {}\n"
-"local _meth = {}\n"
-"for obj_name,mt in pairs(_priv) do\n"
-"	if type(mt) == 'table' and mt.__index then\n"
-"		_meth[obj_name] = mt.__index\n"
-"	end\n"
-"end\n"
-"_pub.zmq = _M\n"
-"for obj_name,pub in pairs(_M) do\n"
-"	_pub[obj_name] = pub\n"
-"end\n"
+"local get_zmq_strerror = ffi.new(\"get_zmq_strerror_func\", _priv[\"get_zmq_strerror\"])\n"
 "\n"
+"local simple_zmq_send = ffi.new(\"simple_zmq_send_func\", _priv[\"simple_zmq_send\"])\n"
+"\n"
+"local poller_find_sock_item = ffi.new(\"poller_find_sock_item_func\", _priv[\"poller_find_sock_item\"])\n"
+"\n"
+"local poller_find_fd_item = ffi.new(\"poller_find_fd_item_func\", _priv[\"poller_find_fd_item\"])\n"
+"\n"
+"local poller_get_free_item = ffi.new(\"poller_get_free_item_func\", _priv[\"poller_get_free_item\"])\n"
+"\n"
+"local poller_poll = ffi.new(\"poller_poll_func\", _priv[\"poller_poll\"])\n"
+"\n"
+"local poller_remove_item = ffi.new(\"poller_remove_item_func\", _priv[\"poller_remove_item\"])\n"
 "\n"
 "local os_lib_table = {\n"
 "	[\"Windows\"] = \"libzmq\",\n"
 "}\n"
 "local C = ffi.load(os_lib_table[ffi.os] or \"zmq\")\n"
-"\n"
-"local get_zmq_strerror = ffi.new(\"get_zmq_strerror_func\", _priv[\"get_zmq_strerror\"])\n"
 "\n"
 "local C_get_zmq_strerror = get_zmq_strerror\n"
 "-- make nicer wrapper for exported error function.\n"
@@ -1531,8 +1546,6 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "  return rc_zmq_send, rc_zmq_send_err\n"
 "end\n"
 "\n"
-"local simple_zmq_send = ffi.new(\"simple_zmq_send_func\", _priv[\"simple_zmq_send\"])\n"
-"\n"
 "-- method: send\n"
 "function _meth.ZMQ_Socket.send(self, data, flags)\n"
 "  local this = obj_type_ZMQ_Socket_check(self)\n"
@@ -1610,16 +1623,6 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "\n"
 "-- Start \"ZMQ_Poller\" FFI interface\n"
-"local poller_find_sock_item = ffi.new(\"poller_find_sock_item_func\", _priv[\"poller_find_sock_item\"])\n"
-"\n"
-"local poller_find_fd_item = ffi.new(\"poller_find_fd_item_func\", _priv[\"poller_find_fd_item\"])\n"
-"\n"
-"local poller_get_free_item = ffi.new(\"poller_get_free_item_func\", _priv[\"poller_get_free_item\"])\n"
-"\n"
-"local poller_poll = ffi.new(\"poller_poll_func\", _priv[\"poller_poll\"])\n"
-"\n"
-"local poller_remove_item = ffi.new(\"poller_remove_item_func\", _priv[\"poller_remove_item\"])\n"
-"\n"
 "-- method: poll\n"
 "function _meth.ZMQ_Poller.poll(self, timeout)\n"
 "  local this = obj_type_ZMQ_Poller_check(self)\n"
@@ -1738,11 +1741,9 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "function _pub.ZMQ_StopWatch.start()\n"
 "  local this_flags = OBJ_UDATA_FLAG_OWN\n"
 "  local this\n"
-"  local rc_zmq_stopwatch_start\n"
-"  rc_zmq_stopwatch_start = C.zmq_stopwatch_start()\n"
+"  this = C.zmq_stopwatch_start()\n"
 "  this =   obj_type_ZMQ_StopWatch_push(this, this_flags)\n"
-"  rc_zmq_stopwatch_start =   obj_type_ZMQ_StopWatch_push(rc_zmq_stopwatch_start, 0)\n"
-"  return this, rc_zmq_stopwatch_start\n"
+"  return this\n"
 "end\n"
 "\n"
 "-- method: stop\n"
@@ -1750,9 +1751,8 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "  local this,this_flags = obj_type_ZMQ_StopWatch_delete(self)\n"
 "  if(band(this_flags,OBJ_UDATA_FLAG_OWN) == 0) then return end\n"
 "  local usecs\n"
-"	usecs = tonumber(C.zmq_stopwatch_stop(this))\n"
-"\n"
-"  usecs = usecs\n"
+"  usecs = C.zmq_stopwatch_stop(this)\n"
+"  usecs = tonumber(usecs)\n"
 "  return usecs\n"
 "end\n"
 "\n"
@@ -1844,7 +1844,7 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 #error "Your version of ZeroMQ is too old.  Please upgrade to version 2.1 or to the latest 2.0.x"
 #endif
 
-typedef void * ZMQ_Socket;
+typedef struct ZMQ_Socket ZMQ_Socket;
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -1894,7 +1894,7 @@ static const int opt_types[] = {
 #endif
 
 
-static ZMQ_Error simple_zmq_send(ZMQ_Socket sock, const char *data, size_t data_len, int flags) {
+static ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
 	ZMQ_Error err;
 	zmq_msg_t msg;
 	/* initialize message */
@@ -1910,13 +1910,16 @@ static ZMQ_Error simple_zmq_send(ZMQ_Socket sock, const char *data, size_t data_
 	return err;
 }
 
-typedef struct ZMQ_Poller {
+struct ZMQ_Poller {
 	zmq_pollitem_t *items;
 	int    next;
 	int    count;
 	int    free_list;
 	int    len;
-} ZMQ_Poller;
+};
+
+
+typedef struct ZMQ_Poller ZMQ_Poller;
 
 #define FREE_ITEM_EVENTS_TAG ((short)0xFFFF)
 
@@ -2082,9 +2085,9 @@ static int poller_poll(ZMQ_Poller *this, long timeout) {
 }
 
 
-typedef void * ZMQ_Ctx;
+typedef struct ZMQ_Ctx ZMQ_Ctx;
 
-typedef void * ZMQ_StopWatch;
+typedef struct ZMQ_StopWatch ZMQ_StopWatch;
 
 /*
  * This wrapper function is to make the EAGAIN/ETERM error messages more like
@@ -2883,7 +2886,7 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
   ZMQ_Ctx * this = obj_type_ZMQ_Ctx_check(L,1);
   int type = luaL_checkinteger(L,2);
   int rc_zmq_socket_flags = OBJ_UDATA_FLAG_OWN;
-  ZMQ_Socket rc_zmq_socket;
+  ZMQ_Socket * rc_zmq_socket;
   rc_zmq_socket = zmq_socket(this, type);
   if((NULL == rc_zmq_socket)) {
     lua_pushnil(L);
@@ -2898,11 +2901,9 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
 static int ZMQ_StopWatch__start__meth(lua_State *L) {
   int this_flags = OBJ_UDATA_FLAG_OWN;
   ZMQ_StopWatch * this;
-  ZMQ_StopWatch rc_zmq_stopwatch_start;
-  rc_zmq_stopwatch_start = zmq_stopwatch_start();
+  this = zmq_stopwatch_start();
   obj_type_ZMQ_StopWatch_push(L, this, this_flags);
-  obj_type_ZMQ_StopWatch_push(L, rc_zmq_stopwatch_start, 0);
-  return 2;
+  return 1;
 }
 
 /* method: stop */
@@ -2911,8 +2912,7 @@ static int ZMQ_StopWatch__stop__meth(lua_State *L) {
   ZMQ_StopWatch * this = obj_type_ZMQ_StopWatch_delete(L,1,&(this_flags));
   unsigned long usecs = 0;
   if(!(this_flags & OBJ_UDATA_FLAG_OWN)) { return 0; }
-	usecs = zmq_stopwatch_stop(this);
-
+  usecs = zmq_stopwatch_stop(this);
   lua_pushinteger(L, usecs);
   return 1;
 }
@@ -2938,7 +2938,7 @@ static int zmq__version__func(lua_State *L) {
 static int zmq__init__func(lua_State *L) {
   int io_threads = luaL_checkinteger(L,1);
   int rc_zmq_init_flags = OBJ_UDATA_FLAG_OWN;
-  ZMQ_Ctx rc_zmq_init;
+  ZMQ_Ctx * rc_zmq_init;
   rc_zmq_init = zmq_init(io_threads);
   if((NULL == rc_zmq_init)) {
     lua_pushnil(L);
@@ -2951,7 +2951,7 @@ static int zmq__init__func(lua_State *L) {
 
 /* method: init_ctx */
 static int zmq__init_ctx__func(lua_State *L) {
-  ZMQ_Ctx ctx;
+  ZMQ_Ctx * ctx;
 	if(lua_isuserdata(L, 1)) {
 		ctx = lua_touserdata(L, 1);
 	} else {
@@ -2970,8 +2970,8 @@ static int zmq__init_ctx__func(lua_State *L) {
 /* method: device */
 static int zmq__device__func(lua_State *L) {
   int device = luaL_checkinteger(L,1);
-  ZMQ_Socket insock = obj_type_ZMQ_Socket_check(L,2);
-  ZMQ_Socket outsock = obj_type_ZMQ_Socket_check(L,3);
+  ZMQ_Socket * insock = obj_type_ZMQ_Socket_check(L,2);
+  ZMQ_Socket * outsock = obj_type_ZMQ_Socket_check(L,3);
   ZMQ_Error rc_zmq_device = 0;
   rc_zmq_device = zmq_device(device, insock, outsock);
   /* check for error. */
@@ -2988,7 +2988,7 @@ static int zmq__device__func(lua_State *L) {
 /* method: stopwatch_start */
 static int zmq__stopwatch_start__func(lua_State *L) {
   int rc_zmq_stopwatch_start_flags = OBJ_UDATA_FLAG_OWN;
-  ZMQ_StopWatch rc_zmq_stopwatch_start;
+  ZMQ_StopWatch * rc_zmq_stopwatch_start;
   rc_zmq_stopwatch_start = zmq_stopwatch_start();
   obj_type_ZMQ_StopWatch_push(L, rc_zmq_stopwatch_start, rc_zmq_stopwatch_start_flags);
   return 1;

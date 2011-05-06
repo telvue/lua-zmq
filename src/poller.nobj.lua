@@ -19,13 +19,13 @@
 -- THE SOFTWARE.
 
 local ZMQ_Poller_type = [[
-typedef struct ZMQ_Poller {
+struct ZMQ_Poller {
 	zmq_pollitem_t *items;
 	int    next;
 	int    count;
 	int    free_list;
 	int    len;
-} ZMQ_Poller;
+};
 ]]
 
 object "ZMQ_Poller" {
@@ -33,6 +33,9 @@ object "ZMQ_Poller" {
 	userdata_type = "embed",
 	c_source(ZMQ_Poller_type),
 	c_source[[
+
+typedef struct ZMQ_Poller ZMQ_Poller;
+
 #define FREE_ITEM_EVENTS_TAG ((short)0xFFFF)
 
 #define ITEM_TO_INDEX(items, item) (item - (items))
@@ -203,7 +206,7 @@ static int poller_poll(ZMQ_Poller *this, long timeout) {
 	ffi_cdef[[
 typedef int socket_t;
 typedef struct zmq_pollitem_t {
-	ZMQ_Socket socket;
+	ZMQ_Socket *socket;
 	socket_t fd;
 	short events;
 	short revents;
