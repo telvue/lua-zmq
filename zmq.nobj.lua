@@ -19,7 +19,7 @@
 -- THE SOFTWARE.
 
 -- make generated variable nicer.
-set_variable_format "%s"
+set_variable_format "%s%d"
 
 c_module "zmq" {
 -- module settings.
