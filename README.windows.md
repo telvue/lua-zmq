@@ -27,11 +27,7 @@ Steps to install on Windows XP (using MinGW+MSYS)
 	>mkdir build
 	>cd build
 	>cmake -G "MSYS Makefiles" -D ZMQ_PATH=c:/zeromq ..
-   	>make
-
-    Warning: conflicting type ...    comment line 62, 63, 66, 67 in src/prepre_generated-zmq.nobj.c, and try again
-
-	>make
+ 	>make
 
      The zmq.dll generated in [build] folder
 
