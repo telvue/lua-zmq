@@ -37,7 +37,7 @@ Steps to install on Windows XP (using MinGW+MSYS)
 
 	$ make install
 
-	3 files zmq.dll, poller.lua and threads.lua are installed in c:\program files\lua-zmq
+	Files zmq.dll, poller.lua and threads.lua are installed in c:\program files\lua-zmq
 
 Author
 ------
