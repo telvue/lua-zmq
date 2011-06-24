@@ -5,18 +5,18 @@ Steps to install on Windows XP (using MinGW+MSYS)
 
 2. Use mingw+msys to compile
 
-	>sh configure --prefix=c:/zeromq
-	>make
-	>make install
+	sh configure --prefix=c:/zeromq
+	make
+	make install
 
-     copy the header & lib to c:\mingw\include_or_lib
+  copy the header & lib to c:\mingw\include_or_lib
 
 3. Download source code of luajit-2.0.0-beta7
 
-	>make
-	>make install
+	make
+	make install
 
-     copy the header & lib to c:\mingw\include_or_lib
+  copy the header & lib to c:\mingw\include_or_lib
 
 4. Install cmake-2.8.4-win32-x86
 
@@ -24,16 +24,13 @@ Steps to install on Windows XP (using MinGW+MSYS)
 
 6. Use cmake+mingw+msys to build
 
-	>mkdir build
-	>cd build
-	>cmake -G "MSYS Makefiles" -D ZMQ_PATH=c:/zeromq ..
- 	>make
+	mkdir build
+	cd build
+	cmake -G "MSYS Makefiles" -D ZMQ_PATH=c:/zeromq ..
+ 	make
+	make install
 
-     The zmq.dll generated in [build] folder
-
-	>make install
-
-     3 files zmq.dll, poller.lua and threads.lua are installed in c:\program files\lua-zmq
+  3 files zmq.dll, poller.lua and threads.lua are installed in c:\program files\lua-zmq
 
 Author
 ------
