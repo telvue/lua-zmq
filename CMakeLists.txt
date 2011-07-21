@@ -27,7 +27,6 @@ include(FindLua51)
 if(NOT ${LUA51_FOUND})
 	message(FATAL_ERROR "The FindLua51 module could not find lua :-(")
 endif()
-set(COMMON_LIBS "${COMMON_LIBS};${LUA_LIBRARIES}")
 
 ## LibZMQ
 if(WIN32)
