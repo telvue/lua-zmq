@@ -56,6 +56,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_BINARY_DIR}
                     ${LUA_INCLUDE_DIR})
 
+link_directories(${ZMQ_LIBRARY_DIRS})
+
 ## LuaZMQ
 set(LUA_ZMQ_SRC
 	zmq.nobj.lua
