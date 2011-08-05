@@ -290,7 +290,7 @@ static FUNC_UNUSED int obj_udata_is_compatible(lua_State *L, obj_udata *ud, void
 	return 0;
 }
 
-static FUNC_UNUSED obj_udata *obj_udata_luacheck_internal(lua_State *L, int _index, void **obj, obj_type *type) {
+static FUNC_UNUSED obj_udata *obj_udata_luacheck_internal(lua_State *L, int _index, void **obj, obj_type *type, int not_delete) {
 	obj_udata *ud;
 	base_caster_t caster = NULL;
 	/* make sure it's a userdata value. */
@@ -306,25 +306,31 @@ static FUNC_UNUSED obj_udata *obj_udata_luacheck_internal(lua_State *L, int _ind
 				}
 				/* check object pointer. */
 				if(*obj == NULL) {
-					luaL_error(L, "null %s", type->name); /* object was garbage collected? */
+					if(not_delete) {
+						luaL_error(L, "null %s", type->name); /* object was garbage collected? */
+					}
+					return NULL;
 				}
 				return ud;
 			}
 		}
 	}
-	luaL_typerror(L, _index, type->name); /* is not a userdata value. */
+	if(not_delete) {
+		luaL_typerror(L, _index, type->name); /* is not a userdata value. */
+	}
 	return NULL;
 }
 
 static FUNC_UNUSED void *obj_udata_luacheck(lua_State *L, int _index, obj_type *type) {
 	void *obj = NULL;
-	obj_udata_luacheck_internal(L, _index, &(obj), type);
+	obj_udata_luacheck_internal(L, _index, &(obj), type, 1);
 	return obj;
 }
 
 static FUNC_UNUSED void *obj_udata_luadelete(lua_State *L, int _index, obj_type *type, int *flags) {
 	void *obj;
-	obj_udata *ud = obj_udata_luacheck_internal(L, _index, &(obj), type);
+	obj_udata *ud = obj_udata_luacheck_internal(L, _index, &(obj), type, 0);
+	if(ud == NULL) return NULL;
 	*flags = ud->flags;
 	/* null userdata. */
 	ud->obj = NULL;
@@ -355,7 +361,8 @@ static FUNC_UNUSED void obj_udata_luapush(lua_State *L, void *obj, obj_type *typ
 
 static FUNC_UNUSED void *obj_udata_luadelete_weak(lua_State *L, int _index, obj_type *type, int *flags) {
 	void *obj;
-	obj_udata *ud = obj_udata_luacheck_internal(L, _index, &(obj), type);
+	obj_udata *ud = obj_udata_luacheck_internal(L, _index, &(obj), type, 0);
+	if(ud == NULL) return NULL;
 	*flags = ud->flags;
 	/* null userdata. */
 	ud->obj = NULL;
@@ -809,17 +816,19 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "-- cache mapping of cdata to userdata\n"
 "local weak_objects = setmetatable({}, { __mode = \"v\" })\n"
 "\n"
-"local function obj_udata_luacheck_internal(obj, type_mt)\n"
+"local function obj_udata_luacheck_internal(obj, type_mt, not_delete)\n"
 "	local obj_mt = d_getmetatable(obj)\n"
 "	if obj_mt == type_mt then\n"
 "		-- convert userdata to cdata.\n"
 "		return ffi.cast(\"obj_udata *\", obj)\n"
 "	end\n"
-"	error(\"(expected `\" .. type_mt['.name'] .. \"`, got \" .. type(obj) .. \")\", 3)\n"
+"	if not_delete then\n"
+"		error(\"(expected `\" .. type_mt['.name'] .. \"`, got \" .. type(obj) .. \")\", 3)\n"
+"	end\n"
 "end\n"
 "\n"
 "local function obj_udata_luacheck(obj, type_mt)\n"
-"	local ud = obj_udata_luacheck_internal(obj, type_mt)\n"
+"	local ud = obj_udata_luacheck_internal(obj, type_mt, true)\n"
 "	return ud.obj\n"
 "end\n"
 "\n"
@@ -832,7 +841,8 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "end\n"
 "\n"
 "local function obj_udata_luadelete(ud_obj, type_mt)\n"
-"	local ud = obj_udata_luacheck_internal(ud_obj, type_mt)\n"
+"	local ud = obj_udata_luacheck_internal(ud_obj, type_mt, false)\n"
+"	if not ud then return nil, 0 end\n"
 "	local obj, flags = ud.obj, ud.flags\n"
 "	-- null userdata.\n"
 "	ud.obj = nil\n"
@@ -865,7 +875,8 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "end\n"
 "\n"
 "local function obj_udata_luadelete_weak(ud_obj, type_mt)\n"
-"	local ud = obj_udata_luacheck_internal(ud_obj, type_mt)\n"
+"	local ud = obj_udata_luacheck_internal(ud_obj, type_mt, false)\n"
+"	if not ud then return nil, 0 end\n"
 "	local obj, flags = ud.obj, ud.flags\n"
 "	-- null userdata.\n"
 "	ud.obj = nil\n"
