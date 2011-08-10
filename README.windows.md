@@ -23,7 +23,7 @@ Steps to install on Windows XP (using MinGW+MSYS)
 
 4. Install cmake-2.8.4-win32-x86
 
-5. Download Neopallium-lua-zmq-1.0
+5. Download Neopallium-lua-zmq-1.1
 
 6. Use cmake+mingw+msys to build
 
