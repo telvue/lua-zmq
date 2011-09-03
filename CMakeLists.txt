@@ -51,6 +51,7 @@ endif()
 
 ## LuaNativeObjects
 include(LuaNativeObjects)
+include(CustomMacros)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_BINARY_DIR}
@@ -79,8 +80,8 @@ endif()
 add_library(lua-zmq MODULE ${LUA_ZMQ_SRC})
 target_link_libraries(lua-zmq ${COMMON_LIBS})
 set_target_properties(lua-zmq PROPERTIES PREFIX "")
-set_target_properties(lua-zmq PROPERTIES COMPILE_FLAGS "${COMMON_CFLAGS}")
-set_target_properties(lua-zmq PROPERTIES LINK_FLAGS "${COMMON_LDFLAGS}")
+add_target_properties(lua-zmq COMPILE_FLAGS "${COMMON_CFLAGS}")
+add_target_properties(lua-zmq LINK_FLAGS "${LD_FLAGS} ${COMMON_LDFLAGS}")
 set_target_properties(lua-zmq PROPERTIES OUTPUT_NAME zmq)
 
 install(TARGETS lua-zmq
