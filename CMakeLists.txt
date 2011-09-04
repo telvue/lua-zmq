@@ -27,6 +27,10 @@ include(FindLua51)
 if(NOT ${LUA51_FOUND})
 	message(FATAL_ERROR "The FindLua51 module could not find lua :-(")
 endif()
+## MAC OSX needs extra linker flags
+if(APPLE)
+	set(COMMON_LDFLAGS "${COMMON_LDFLAGS} -undefined dynamic_lookup")
+endif()
 
 ## LibZMQ
 if(WIN32)
