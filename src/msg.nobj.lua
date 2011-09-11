@@ -34,11 +34,8 @@ struct zmq_msg_t
 	unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */
 };
 
-typedef void (zmq_free_fn) (void *data, void *hint);
-
 int zmq_msg_init (zmq_msg_t *msg);
 int zmq_msg_init_size (zmq_msg_t *msg, size_t size);
-int zmq_msg_init_data (zmq_msg_t *msg, void *data, size_t size, zmq_free_fn *ffn, void *hint);
 
 ]],
 	constructor "init" {
