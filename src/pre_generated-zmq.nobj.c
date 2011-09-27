@@ -679,11 +679,10 @@ static FUNC_UNUSED int lua_checktype_ref(lua_State *L, int _index, int _type) {
 #if LUAJIT_FFI
 static int nobj_udata_new_ffi(lua_State *L) {
 	size_t size = luaL_checkinteger(L, 1);
-	void *ud;
 	luaL_checktype(L, 2, LUA_TTABLE);
 	lua_settop(L, 2);
 	/* create userdata. */
-	ud = lua_newuserdata(L, size);
+	lua_newuserdata(L, size);
 	lua_replace(L, 1);
 	/* set userdata's metatable. */
 	lua_setmetatable(L, 1);
@@ -989,39 +988,34 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "	unsigned char vsm_data [30]; /* that '30' is from 'MAX_VSM_SIZE' */\n"
 "};\n"
 "\n"
-"typedef void (zmq_free_fn) (void *data, void *hint);\n"
-"\n"
 "int zmq_msg_init (zmq_msg_t *msg);\n"
 "int zmq_msg_init_size (zmq_msg_t *msg, size_t size);\n"
-"int zmq_msg_init_data (zmq_msg_t *msg, void *data, size_t size, zmq_free_fn *ffn, void *hint);\n"
 "\n"
 "\n"
-"ZMQ_Error zmq_msg_close(zmq_msg_t * this1);\n"
+"ZMQ_Error zmq_msg_close(zmq_msg_t *);\n"
 "\n"
-"ZMQ_Error zmq_msg_close(zmq_msg_t * this1);\n"
+"ZMQ_Error zmq_msg_move(zmq_msg_t *, zmq_msg_t *);\n"
 "\n"
-"ZMQ_Error zmq_msg_move(zmq_msg_t * this1, zmq_msg_t * src2);\n"
+"ZMQ_Error zmq_msg_copy(zmq_msg_t *, zmq_msg_t *);\n"
 "\n"
-"ZMQ_Error zmq_msg_copy(zmq_msg_t * this1, zmq_msg_t * src2);\n"
+"void * zmq_msg_data(zmq_msg_t *);\n"
 "\n"
-"void * zmq_msg_data(zmq_msg_t * this1);\n"
+"size_t zmq_msg_size(zmq_msg_t *);\n"
 "\n"
-"size_t zmq_msg_size(zmq_msg_t * this1);\n"
+"ZMQ_Error zmq_close(ZMQ_Socket *);\n"
 "\n"
-"ZMQ_Error zmq_close(ZMQ_Socket * this1);\n"
+"ZMQ_Error zmq_bind(ZMQ_Socket *, const char *);\n"
 "\n"
-"ZMQ_Error zmq_bind(ZMQ_Socket * this1, const char * addr2);\n"
-"\n"
-"ZMQ_Error zmq_connect(ZMQ_Socket * this1, const char * addr2);\n"
+"ZMQ_Error zmq_connect(ZMQ_Socket *, const char *);\n"
 "\n"
 "int zmq_setsockopt (void *s, int option, const void *optval, size_t optvallen);\n"
 "int zmq_getsockopt (void *s, int option, void *optval, size_t *optvallen);\n"
 "\n"
-"ZMQ_Error zmq_send(ZMQ_Socket * this1, zmq_msg_t * msg2, int flags3);\n"
+"ZMQ_Error zmq_send(ZMQ_Socket *, zmq_msg_t *, int);\n"
 "\n"
 "typedef ZMQ_Error (*simple_zmq_send_func)(ZMQ_Socket *sock, const char *data, size_t data_len, int flags);\n"
 "\n"
-"ZMQ_Error zmq_recv(ZMQ_Socket * this1, zmq_msg_t * msg2, int flags3);\n"
+"ZMQ_Error zmq_recv(ZMQ_Socket *, zmq_msg_t *, int);\n"
 "\n"
 "typedef int socket_t;\n"
 "typedef struct zmq_pollitem_t {\n"
@@ -1051,21 +1045,19 @@ static const char zmq_ffi_lua_code[] = "local error = error\n"
 "\n"
 "typedef void (*poller_remove_item_func)(ZMQ_Poller *poller, int idx);\n"
 "\n"
-"ZMQ_Error zmq_term(ZMQ_Ctx * this1);\n"
+"ZMQ_Error zmq_term(ZMQ_Ctx *);\n"
 "\n"
-"ZMQ_Socket * zmq_socket(ZMQ_Ctx * this1, int type2);\n"
-"\n"
-"ZMQ_StopWatch * zmq_stopwatch_start();\n"
-"\n"
-"unsigned long zmq_stopwatch_stop(ZMQ_StopWatch * this1);\n"
-"\n"
-"ZMQ_Ctx * zmq_init(int io_threads1);\n"
-"\n"
-"ZMQ_Error zmq_device(int device1, ZMQ_Socket * insock2, ZMQ_Socket * outsock3);\n"
+"ZMQ_Socket * zmq_socket(ZMQ_Ctx *, int);\n"
 "\n"
 "ZMQ_StopWatch * zmq_stopwatch_start();\n"
 "\n"
-"void zmq_sleep(int seconds_1);\n"
+"unsigned long zmq_stopwatch_stop(ZMQ_StopWatch *);\n"
+"\n"
+"ZMQ_Ctx * zmq_init(int);\n"
+"\n"
+"ZMQ_Error zmq_device(int, ZMQ_Socket *, ZMQ_Socket *);\n"
+"\n"
+"void zmq_sleep(int);\n"
 "\n"
 "\n"
 "]]\n"
@@ -3264,6 +3256,8 @@ static const obj_const zmq_constants[] = {
   {"MSG_SHARED", NULL, 128, CONST_NUMBER},
   {"SNDBUF", NULL, 11, CONST_NUMBER},
   {"STREAMER", NULL, 1, CONST_NUMBER},
+  {"DEALER", NULL, 5, CONST_NUMBER},
+  {"ROUTER", NULL, 6, CONST_NUMBER},
   {"NOBLOCK", NULL, 1, CONST_NUMBER},
   {"RCVBUF", NULL, 12, CONST_NUMBER},
   {"FORWARDER", NULL, 2, CONST_NUMBER},
@@ -3278,25 +3272,25 @@ static const obj_const zmq_constants[] = {
   {"POLLIN", NULL, 1, CONST_NUMBER},
   {"REP", NULL, 4, CONST_NUMBER},
   {"POLLERR", NULL, 4, CONST_NUMBER},
-  {"MAX_VSM_SIZE", NULL, 30, CONST_NUMBER},
-  {"PUSH", NULL, 8, CONST_NUMBER},
+  {"AFFINITY", NULL, 4, CONST_NUMBER},
+  {"VSM", NULL, 32, CONST_NUMBER},
   {"HWM", NULL, 1, CONST_NUMBER},
   {"MSG_MORE", NULL, 1, CONST_NUMBER},
   {"REQ", NULL, 3, CONST_NUMBER},
   {"UNSUBSCRIBE", NULL, 7, CONST_NUMBER},
   {"PULL", NULL, 7, CONST_NUMBER},
-  {"PAIR", NULL, 0, CONST_NUMBER},
+  {"PUSH", NULL, 8, CONST_NUMBER},
   {"QUEUE", NULL, 3, CONST_NUMBER},
-  {"EVENTS", NULL, 15, CONST_NUMBER},
   {"XREQ", NULL, 5, CONST_NUMBER},
+  {"PAIR", NULL, 0, CONST_NUMBER},
   {"XREP", NULL, 6, CONST_NUMBER},
   {"SUBSCRIBE", NULL, 6, CONST_NUMBER},
   {"MCAST_LOOP", NULL, 10, CONST_NUMBER},
-  {"VSM", NULL, 32, CONST_NUMBER},
+  {"EVENTS", NULL, 15, CONST_NUMBER},
   {"RECOVERY_IVL", NULL, 9, CONST_NUMBER},
   {"RECONNECT_IVL", NULL, 18, CONST_NUMBER},
   {"POLLOUT", NULL, 2, CONST_NUMBER},
-  {"AFFINITY", NULL, 4, CONST_NUMBER},
+  {"MAX_VSM_SIZE", NULL, 30, CONST_NUMBER},
   {NULL, NULL, 0.0 , 0}
 };
 

@@ -92,10 +92,14 @@ PUB            = 1,
 SUB            = 2,
 REQ            = 3,
 REP            = 4,
-XREQ           = 5,
-XREP           = 6,
+DEALER         = 5,
+ROUTER         = 6,
 PULL           = 7,
 PUSH           = 8,
+
+-- deprecated
+XREQ           = 5,
+XREP           = 6,
 
 -- socket options
 HWM            = 1,
