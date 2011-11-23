@@ -64,6 +64,8 @@ local msg = zmq.zmq_msg_t.init_size(message_size)
 print(string.format("message size: %i [B]", message_size))
 print(string.format("roundtrip count: %i", roundtrip_count))
 
+zmq.sleep(2) -- wait for child thread to connect.
+
 local timer = zmq.stopwatch_start()
 
 for i = 1, roundtrip_count do
