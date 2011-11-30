@@ -2122,9 +2122,9 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "  local ctx1\n"
 "	local p_type = type(ptr1)\n"
 "	if p_type == 'userdata' then\n"
-"		ctx1 = ffi.cast('void *', ptr1);\n"
-"	elseif p_type == 'cdata' then\n"
-"		ctx1 = ptr1;\n"
+"		ctx1 = ffi.cast('ZMQ_Ctx *', ptr1);\n"
+"	elseif p_type == 'cdata' and ffi.istype('void *', ptr1) then\n"
+"		ctx1 = ffi.cast('ZMQ_Ctx *', ptr1);\n"
 "	else\n"
 "		return error(\"expected lightuserdata/cdata<void *>\");\n"
 "	end\n"
@@ -3295,9 +3295,16 @@ static int ZMQ_Ctx__term__meth(lua_State *L) {
 
 /* method: lightuserdata */
 static int ZMQ_Ctx__lightuserdata__meth(lua_State *L) {
-  ZMQ_Ctx * this1 = obj_type_ZMQ_Ctx_check(L,1);
   void * ptr1 = NULL;
-	ptr1 = this1;
+	if(lua_isuserdata(L, 1)) {
+		ptr1 = lua_touserdata(L, 1);
+	} else {
+		/* check for LuaJIT's cdata. */
+		int tp = lua_type(L, 1);
+		if(strncmp("cdata", lua_typename(L, tp), 5) == 0) {
+			ptr1 = *((void **)lua_topointer(L, 1));
+		}
+	}
 
   lua_pushlightuserdata(L, ptr1);
   return 1;
