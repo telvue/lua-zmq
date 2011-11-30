@@ -19,6 +19,7 @@
 -- THE SOFTWARE.
 
 object "ZMQ_Ctx" {
+	sys_include"string.h",
 	error_on_null = "get_zmq_strerror()",
 	c_source [[
 typedef struct ZMQ_Ctx ZMQ_Ctx;
@@ -26,10 +27,19 @@ typedef struct ZMQ_Ctx ZMQ_Ctx;
 	destructor "term" {
 		c_method_call "ZMQ_Error"  "zmq_term" {}
 	},
-	method "lightuserdata" {
+	method "lightuserdata" { override_this = true,
+		var_in{ "<any>", "this" },
 		var_out{ "void *", "ptr" },
 		c_source[[
-	${ptr} = ${this};
+	if(lua_isuserdata(L, ${this::idx})) {
+		${ptr} = lua_touserdata(L, ${this::idx});
+	} else {
+		/* check for LuaJIT's cdata. */
+		int tp = lua_type(L, ${this::idx});
+		if(strncmp("cdata", lua_typename(L, tp), 5) == 0) {
+			${ptr} = *((void **)lua_topointer(L, ${this::idx}));
+		}
+	}
 ]]
 	},
 	method "socket" {

@@ -145,9 +145,9 @@ c_function "init_ctx" {
 	ffi_source[[
 	local p_type = type(${ptr})
 	if p_type == 'userdata' then
-		${ctx} = ffi.cast('void *', ${ptr});
-	elseif p_type == 'cdata' then
-		${ctx} = ${ptr};
+		${ctx} = ffi.cast('ZMQ_Ctx *', ${ptr});
+	elseif p_type == 'cdata' and ffi.istype('void *', ${ptr}) then
+		${ctx} = ffi.cast('ZMQ_Ctx *', ${ptr});
 	else
 		return error("expected lightuserdata/cdata<void *>");
 	end
