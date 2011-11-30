@@ -1214,7 +1214,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "\n"
 "void poller_cleanup(ZMQ_Poller *);\n"
 "\n"
-"int poller_poll_next_revents(ZMQ_Poller *, int*);\n"
+"int poller_next_revents(ZMQ_Poller *, int*);\n"
 "\n"
 "ZMQ_Error zmq_term(ZMQ_Ctx *);\n"
 "\n"
@@ -2018,19 +2018,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "  \n"
 "  local idx1\n"
 "  local revents2 = next_revents_idx_revents_tmp\n"
-"  idx1 = C.poller_poll_next_revents(self, revents2)\n"
-"  idx1 = idx1\n"
-"  revents2 = revents2\n"
-"[0]  return idx1, revents2\n"
-"end\n"
-"\n"
-"  local poll_next_revents_idx_revents_tmp = ffi.new(\"int[1]\")\n"
-"-- method: poll_next_revents_idx\n"
-"function _meth.ZMQ_Poller.poll_next_revents_idx(self)\n"
-"  \n"
-"  local idx1\n"
-"  local revents2 = poll_next_revents_idx_revents_tmp\n"
-"  idx1 = C.poller_poll_next_revents(self, revents2)\n"
+"  idx1 = C.poller_next_revents(self, revents2)\n"
 "  idx1 = idx1\n"
 "  revents2 = revents2\n"
 "[0]  return idx1, revents2\n"
@@ -2512,44 +2500,6 @@ int poller_next_revents(ZMQ_Poller *poller, int *revents) {
 	poller->next = -1;
 	*revents = 0;
 	return -1;
-}
-
-int poller_poll_next_revents(ZMQ_Poller *poller, int *revents) {
-	zmq_pollitem_t *items;
-	int count;
-	int idx;
-	int next;
-
-	idx = poller->next;
-	items = poller->items;
-	/* do we need to poll for more events? */
-	if(idx < 0) {
-		goto need_poll;
-	}
-get_event:
-	count = poller->count;
-	/* find next item with pending events. */
-	for(;idx < count; ++idx) {
-		/* did we find a pending event? */
-		if(items[idx].revents != 0) {
-			*revents = items[idx].revents;
-			next = idx+1;
-			poller->next = (next < count) ? next : -1;
-			return idx;
-		}
-	}
-	/* processed all pending events. */
-	poller->next = -1;
-	*revents = 0;
-	return -1;
-
-need_poll:
-	count = poller_poll(poller, -1);
-	if(count > 0) {
-		idx = 0;
-		goto get_event;
-	}
-	return count;
 }
 
 
@@ -3309,18 +3259,7 @@ static int ZMQ_Poller__next_revents_idx__meth(lua_State *L) {
   ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
   int idx1 = 0;
   int revents2 = 0;
-  idx1 = poller_poll_next_revents(this1, &(revents2));
-  lua_pushinteger(L, idx1);
-  lua_pushinteger(L, revents2);
-  return 2;
-}
-
-/* method: poll_next_revents_idx */
-static int ZMQ_Poller__poll_next_revents_idx__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
-  int idx1 = 0;
-  int revents2 = 0;
-  idx1 = poller_poll_next_revents(this1, &(revents2));
+  idx1 = poller_next_revents(this1, &(revents2));
   lua_pushinteger(L, idx1);
   lua_pushinteger(L, revents2);
   return 2;
@@ -4009,7 +3948,6 @@ static const luaL_reg obj_ZMQ_Poller_methods[] = {
   {"remove", ZMQ_Poller__remove__meth},
   {"poll", ZMQ_Poller__poll__meth},
   {"next_revents_idx", ZMQ_Poller__next_revents_idx__meth},
-  {"poll_next_revents_idx", ZMQ_Poller__poll_next_revents_idx__meth},
   {"count", ZMQ_Poller__count__meth},
   {NULL, NULL}
 };

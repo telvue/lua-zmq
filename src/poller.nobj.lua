@@ -455,7 +455,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 ]],
 	},
 	method "next_revents_idx" {
-		c_method_call { "int", "idx>1" } "poller_poll_next_revents" { "int", "&revents>2" },
+		c_method_call { "int", "idx>1" } "poller_next_revents" { "int", "&revents>2" },
 	},
 	method "count" {
 		var_out{ "int", "count" },
