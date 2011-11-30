@@ -344,7 +344,7 @@ local ZMQ_EVENTS = _M.EVENTS
 	},
 	-- create helper function for `zmq_send`
 	c_source[[
-static ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
+ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
 	ZMQ_Error err;
 	zmq_msg_t msg;
 	/* initialize message */
@@ -360,19 +360,9 @@ static ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data
 	return err;
 }
 ]],
-	-- export helper function.
-	ffi_export_function "ZMQ_Error" "simple_zmq_send"
-		"(ZMQ_Socket *sock, const char *data, size_t data_len, int flags)",
 	method "send" {
-		var_in{ "const char *", "data" },
-		var_in{ "int", "flags?" },
-		var_out{ "ZMQ_Error", "err" },
-		c_source[[
-	${err} = simple_zmq_send(${this}, ${data}, ${data_len}, ${flags});
-]],
-		ffi_source[[
-	${err} = simple_zmq_send(${this}, ${data}, ${data_len}, ${flags});
-]],
+		c_method_call "ZMQ_Error" "simple_zmq_send"
+			{ "const char *", "data", "size_t", "#data", "int", "flags?"}
 	},
 	--
 	-- zmq_recv

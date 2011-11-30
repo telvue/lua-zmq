@@ -34,43 +34,36 @@ local poller_mt = {}
 poller_mt.__index = poller_mt
 
 function poller_mt:add(sock, events, cb)
-	self.poller:add(sock, events)
-	self.callbacks[sock] = cb
+	local id = self.poller:add(sock, events)
+	self.callbacks[id] = function(revents) return cb(sock, revents) end
 end
 
 function poller_mt:modify(sock, events, cb)
+	local id
 	if events ~= 0 and cb then
-		self.callbacks[sock] = cb
-		self.poller:modify(sock, events)
+		id = self.poller:modify(sock, events)
+		self.callbacks[id] = function(revents) return cb(sock, revents) end
 	else
-		self:remove(sock)
+		id = self:remove(sock)
+		self.callbacks[id] = nil
 	end
 end
 
 function poller_mt:remove(sock)
-	self.poller:remove(sock)
-	self.callbacks[sock] = nil
+	local id = self.poller:remove(sock)
+	self.callbacks[id] = nil
 end
 
 function poller_mt:poll(timeout)
 	local poller = self.poller
-	local status, err = poller:poll(timeout)
-	if not status then
+	local count, err = poller:poll(timeout)
+	if not count then
 		return nil, err
 	end
 	local callbacks = self.callbacks
-	local count = 0
-	while true do
-		local sock, revents = poller:next_revents()
-		if not sock then
-			break
-		end
-		local cb = callbacks[sock]
-		if not cb then
-			error("Missing callback for sock:" .. tostring(sock))
-		end
-		cb(sock, revents)
-		count = count + 1
+	for i=1,count do
+		local id, revents = poller:next_revents_idx()
+		callbacks[id](revents)
 	end
 	return count
 end
@@ -78,7 +71,7 @@ end
 function poller_mt:start()
 	self.is_running = true
 	while self.is_running do
-		local status, err = self:poll(-1)
+		status, err = self:poll(-1)
 		if not status then
 			return false, err
 		end
@@ -95,7 +88,7 @@ module(...)
 function new(pre_alloc)
 	return setmetatable({
 		poller = zmq.ZMQ_Poller(pre_alloc),
-		callbacks = setmetatable({}, {__mode="k"}),
+		callbacks = {},
 	}, poller_mt)
 end
 
