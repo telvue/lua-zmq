@@ -224,6 +224,10 @@ meta_object "ZErrors" {
 	},
 }
 
+ffi_cdef[[
+int zmq_errno (void);
+]]
+
 ffi_source "ffi_src" [[
 -- get ZErrors table to map errno to error name.
 local ZError_names = _M.ZErrors
@@ -231,9 +235,6 @@ local ZError_names = _M.ZErrors
 local function get_zmq_strerror()
 	return ZError_names[C.zmq_errno()]
 end
-]]
-
-ffi_source "ffi_src" [[
 ]]
 
 c_source "extra_code" [[
