@@ -197,6 +197,9 @@ typedef struct obj_udata {
 /* use static pointer as key to weak userdata table. */
 static char *obj_udata_weak_ref_key = "obj_udata_weak_ref_key";
 
+/* use static pointer as key to module's private table. */
+static char *obj_udata_private_key = "obj_udata_private_key";
+
 #if LUAJIT_FFI
 typedef struct ffi_export_symbol {
 	const char *name;
@@ -414,6 +417,25 @@ static FUNC_UNUSED obj_udata *obj_udata_luacheck_internal(lua_State *L, int _ind
 				return ud;
 			}
 		}
+	} else {
+		/* handle cdata. */
+		/* get private table. */
+		lua_pushlightuserdata(L, obj_udata_private_key);
+		lua_rawget(L, LUA_REGISTRYINDEX); /* private table. */
+		/* get cdata type check function from private table. */
+		lua_pushlightuserdata(L, type);
+		lua_rawget(L, -2);
+
+		/* pass cdata value to type checking function. */
+		lua_pushvalue(L, _index);
+		lua_call(L, 1, 1);
+		if(!lua_isnil(L, -1)) {
+			/* valid type get pointer from cdata. */
+			lua_pop(L, 2);
+			*obj = *(void **)lua_topointer(L, _index);
+			return ud;
+		}
+		lua_pop(L, 2);
 	}
 	if(not_delete) {
 		luaL_typerror(L, _index, type->name); /* is not a userdata value. */
@@ -582,6 +604,24 @@ static FUNC_UNUSED void * obj_simple_udata_luacheck(lua_State *L, int _index, ob
 				return ud;
 			}
 		}
+	} else {
+		/* handle cdata. */
+		/* get private table. */
+		lua_pushlightuserdata(L, obj_udata_private_key);
+		lua_rawget(L, LUA_REGISTRYINDEX); /* private table. */
+		/* get cdata type check function from private table. */
+		lua_pushlightuserdata(L, type);
+		lua_rawget(L, -2);
+
+		/* pass cdata value to type checking function. */
+		lua_pushvalue(L, _index);
+		lua_call(L, 1, 1);
+		if(!lua_isnil(L, -1)) {
+			/* valid type get pointer from cdata. */
+			lua_pop(L, 2);
+			return (void *)lua_topointer(L, _index);
+		}
+		lua_pop(L, 2);
 	}
 	luaL_typerror(L, _index, type->name); /* is not a userdata value. */
 	return NULL;
@@ -1254,6 +1294,12 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "	local obj_mt = _priv.zmq_msg_t\n"
 "	local zmq_msg_t_sizeof = ffi.sizeof\"zmq_msg_t\"\n"
 "\n"
+"	local obj_type = obj_mt['.type']\n"
+"	_priv[obj_type] = function(obj)\n"
+"		if ffi.istype(\"zmq_msg_t\", obj) then return obj end\n"
+"		return nil\n"
+"	end\n"
+"\n"
 "	function obj_type_zmq_msg_t_check(obj)\n"
 "		return obj\n"
 "	end\n"
@@ -1286,6 +1332,12 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "	local obj_mt = _priv.ZMQ_Socket\n"
 "	local objects = setmetatable({}, {__mode = \"v\"})\n"
 "	local obj_flags = {}\n"
+"\n"
+"	local obj_type = obj_mt['.type']\n"
+"	_priv[obj_type] = function(ptr)\n"
+"		if ffi.istype(\"ZMQ_Socket *\", ptr) then return ptr end\n"
+"		return nil\n"
+"	end\n"
 "\n"
 "	function obj_type_ZMQ_Socket_check(ptr)\n"
 "		return ptr\n"
@@ -1329,6 +1381,12 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "	local obj_mt = _priv.ZMQ_Poller\n"
 "	local ZMQ_Poller_sizeof = ffi.sizeof\"ZMQ_Poller\"\n"
 "\n"
+"	local obj_type = obj_mt['.type']\n"
+"	_priv[obj_type] = function(obj)\n"
+"		if ffi.istype(\"ZMQ_Poller\", obj) then return obj end\n"
+"		return nil\n"
+"	end\n"
+"\n"
 "	function obj_type_ZMQ_Poller_check(obj)\n"
 "		return obj\n"
 "	end\n"
@@ -1361,6 +1419,12 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "	local obj_mt = _priv.ZMQ_Ctx\n"
 "	local objects = setmetatable({}, {__mode = \"v\"})\n"
 "	local obj_flags = {}\n"
+"\n"
+"	local obj_type = obj_mt['.type']\n"
+"	_priv[obj_type] = function(ptr)\n"
+"		if ffi.istype(\"ZMQ_Ctx *\", ptr) then return ptr end\n"
+"		return nil\n"
+"	end\n"
 "\n"
 "	function obj_type_ZMQ_Ctx_check(ptr)\n"
 "		return ptr\n"
@@ -1404,6 +1468,12 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "	local obj_mt = _priv.ZMQ_StopWatch\n"
 "	local objects = setmetatable({}, {__mode = \"v\"})\n"
 "	local obj_flags = {}\n"
+"\n"
+"	local obj_type = obj_mt['.type']\n"
+"	_priv[obj_type] = function(ptr)\n"
+"		if ffi.istype(\"ZMQ_StopWatch *\", ptr) then return ptr end\n"
+"		return nil\n"
+"	end\n"
 "\n"
 "	function obj_type_ZMQ_StopWatch_check(ptr)\n"
 "		return ptr\n"
@@ -3295,16 +3365,9 @@ static int ZMQ_Ctx__term__meth(lua_State *L) {
 
 /* method: lightuserdata */
 static int ZMQ_Ctx__lightuserdata__meth(lua_State *L) {
+  ZMQ_Ctx * this1 = obj_type_ZMQ_Ctx_check(L,1);
   void * ptr1 = NULL;
-	if(lua_isuserdata(L, 1)) {
-		ptr1 = lua_touserdata(L, 1);
-	} else {
-		/* check for LuaJIT's cdata. */
-		int tp = lua_type(L, 1);
-		if(strncmp("cdata", lua_typename(L, tp), 5) == 0) {
-			ptr1 = *((void **)lua_topointer(L, 1));
-		}
-	}
+	ptr1 = this1;
 
   lua_pushlightuserdata(L, ptr1);
   return 1;
@@ -4110,9 +4173,11 @@ static const reg_sub_module reg_sub_modules[] = {
 
 
 
+#if LUAJIT_FFI
 static const ffi_export_symbol zmq_ffi_export[] = {
   {NULL, NULL}
 };
+#endif
 
 
 
@@ -4150,6 +4215,9 @@ LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 	/* private table to hold reference to object metatables. */
 	lua_newtable(L);
 	priv_table = lua_gettop(L);
+	lua_pushlightuserdata(L, obj_udata_private_key);
+	lua_pushvalue(L, priv_table);
+	lua_rawset(L, LUA_REGISTRYINDEX);  /* store private table in registry. */
 
 	/* create object cache. */
 	create_object_instance_cache(L);

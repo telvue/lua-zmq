@@ -27,19 +27,10 @@ typedef struct ZMQ_Ctx ZMQ_Ctx;
 	destructor "term" {
 		c_method_call "ZMQ_Error"  "zmq_term" {}
 	},
-	method "lightuserdata" { override_this = true,
-		var_in{ "<any>", "this" },
+	method "lightuserdata" {
 		var_out{ "void *", "ptr" },
 		c_source[[
-	if(lua_isuserdata(L, ${this::idx})) {
-		${ptr} = lua_touserdata(L, ${this::idx});
-	} else {
-		/* check for LuaJIT's cdata. */
-		int tp = lua_type(L, ${this::idx});
-		if(strncmp("cdata", lua_typename(L, tp), 5) == 0) {
-			${ptr} = *((void **)lua_topointer(L, ${this::idx}));
-		}
-	}
+	${ptr} = ${this};
 ]]
 	},
 	method "socket" {
