@@ -31,68 +31,101 @@ luajit_ffi_load_cmodule = true,
 sys_include "string.h",
 include "zmq.h",
 
+c_source "typedefs" [[
+#ifndef ZMQ_DONTWAIT
+#  define ZMQ_DONTWAIT     ZMQ_NOBLOCK
+#endif
+#if ZMQ_VERSION_MAJOR == 2
+#  define ZMQ_POLL_MSEC    1000 // zmq_poll is usec
+#elif ZMQ_VERSION_MAJOR == 3
+#  define ZMQ_POLL_MSEC    1    // zmq_poll is msec
+#  ifndef ZMQ_HWM
+#    define ZMQ_HWM        1    // backwards compatibility
+#  endif
+#endif
+#ifndef ZMQ_DEALER
+#  define ZMQ_DEALER ZMQ_XREQ
+#endif
+#ifndef ZMQ_ROUTER
+#  define ZMQ_ROUTER ZMQ_XREP
+#endif
+]],
+
 --
 -- Module constants
 --
-constants {
-MAX_VSM_SIZE   = 30,
+export_definitions {
+MAX_VSM_SIZE      = "ZMQ_MAX_VSM_SIZE",
 
 -- message types
-DELIMITER      = 31,
-VSM            = 32,
+DELIMITER         = "ZMQ_DELIMITER",
+VSM               = "ZMQ_VSM",
 
 -- message flags
-MSG_MORE       = 1,
-MSG_SHARED     = 128,
+MSG_MORE          = "ZMQ_MSG_MORE",
+MSG_SHARED        = "ZMQ_MSG_SHARED",
 
 -- socket types
-PAIR           = 0,
-PUB            = 1,
-SUB            = 2,
-REQ            = 3,
-REP            = 4,
-DEALER         = 5,
-ROUTER         = 6,
-PULL           = 7,
-PUSH           = 8,
+PAIR              = "ZMQ_PAIR",
+PUB               = "ZMQ_PUB",
+SUB               = "ZMQ_SUB",
+REQ               = "ZMQ_REQ",
+REP               = "ZMQ_REP",
+DEALER            = "ZMQ_DEALER",
+ROUTER            = "ZMQ_ROUTER",
+PULL              = "ZMQ_PULL",
+PUSH              = "ZMQ_PUSH",
 
 -- deprecated
-XREQ           = 5,
-XREP           = 6,
+XREQ              = "ZMQ_DEALER",
+XREP              = "ZMQ_ROUTER",
 
 -- socket options
-HWM            = 1,
-SWAP           = 3,
-AFFINITY       = 4,
-IDENTITY       = 5,
-SUBSCRIBE      = 6,
-UNSUBSCRIBE    = 7,
-RATE           = 8,
-RECOVERY_IVL   = 9,
-MCAST_LOOP     = 10,
-SNDBUF         = 11,
-RCVBUF         = 12,
-RCVMORE        = 13,
-FD             = 14,
-EVENTS         = 15,
-TYPE           = 16,
-LINGER         = 17,
-RECONNECT_IVL  = 18,
-BACKLOG        = 19,
+HWM               = "ZMQ_HWM",
+SWAP              = "ZMQ_SWAP",
+AFFINITY          = "ZMQ_AFFINITY",
+IDENTITY          = "ZMQ_IDENTITY",
+SUBSCRIBE         = "ZMQ_SUBSCRIBE",
+UNSUBSCRIBE       = "ZMQ_UNSUBSCRIBE",
+RATE              = "ZMQ_RATE",
+RECOVERY_IVL      = "ZMQ_RECOVERY_IVL",
+MCAST_LOOP        = "ZMQ_MCAST_LOOP",
+SNDBUF            = "ZMQ_SNDBUF",
+RCVBUF            = "ZMQ_RCVBUF",
+RCVMORE           = "ZMQ_RCVMORE",
+FD                = "ZMQ_FD",
+EVENTS            = "ZMQ_EVENTS",
+TYPE              = "ZMQ_TYPE",
+LINGER            = "ZMQ_LINGER",
+RECONNECT_IVL     = "ZMQ_RECONNECT_IVL",
+RECONNECT_IVL_MSEC= "ZMQ_RECONNECT_IVL_MSEC",
+BACKLOG           = "ZMQ_BACKLOG",
+RECONNECT_IVL_MAX = "ZMQ_RECONNECT_IVL_MAX",
+MAXMSGSIZE        = "ZMQ_MAXMSGSIZE",
+SNDHWM            = "ZMQ_SNDHWM",
+RCVHWM            = "ZMQ_RCVHWM",
+MULTICAST_HOPS    = "ZMQ_MULTICAST_HOPS",
+RCVTIMEO          = "ZMQ_RCVTIMEO",
+SNDTIMEO          = "ZMQ_SNDTIMEO",
+RCVLABEL          = "ZMQ_RCVLABEL",
 
 -- send/recv flags
-NOBLOCK        = 1,
-SNDMORE        = 2,
+NOBLOCK           = "ZMQ_NOBLOCK",
+SNDMORE           = "ZMQ_SNDMORE",
+SNDLABEL          = "ZMQ_SNDLABEL",
 
 -- poll events
-POLLIN         = 1,
-POLLOUT        = 2,
-POLLERR        = 4,
+POLLIN            = "ZMQ_POLLIN",
+POLLOUT           = "ZMQ_POLLOUT",
+POLLERR           = "ZMQ_POLLERR",
+
+-- poll milliseconds.
+POLL_MSEC         = "ZMQ_POLL_MSEC",
 
 -- devices
-STREAMER       = 1,
-FORWARDER      = 2,
-QUEUE          = 3,
+STREAMER          = "ZMQ_STREAMER",
+FORWARDER         = "ZMQ_FORWARDER",
+QUEUE             = "ZMQ_QUEUE",
 },
 
 
