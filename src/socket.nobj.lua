@@ -18,6 +18,217 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
+local OPT_TYPES = {
+NONE   = "NONE",
+INT    = "int",
+UINT32 = "uint32_t",
+UINT64 = "uint64_t",
+INT64  = "int64_t",
+BLOB   = "const char *",
+FD     = "int",
+}
+local get_set_prefix = {
+rw = { c_get = "lzmq_socket_", get='', c_set = "lzmq_socket_set_", set='set_' },
+r = { c_get = "lzmq_socket_", get='' },
+w = { c_set = "lzmq_socket_", set='' },
+}
+
+local socket_options = {
+	{ ver_def = 'VERSION_2_0',
+		[1] =  { name="hwm",               otype="UINT64", mode="rw", ltype="int" },
+		[2] =  { },
+		[3] =  { name="swap",              otype="INT64",  mode="rw", ltype="int" },
+		[4] =  { name="affinity",          otype="UINT64", mode="rw", ltype="uint64_t" },
+		[5] =  { name="identity",          otype="BLOB",   mode="rw", ltype="const char *" },
+		[6] =  { name="subscribe",         otype="BLOB",   mode="w",  ltype="const char *" },
+		[7] =  { name="unsubscribe",       otype="BLOB",   mode="w",  ltype="const char *" },
+		[8] =  { name="rate",              otype="INT64",  mode="rw", ltype="int" },
+		[9] =  { name="recovery_ivl",      otype="INT64",  mode="rw", ltype="int" },
+		[10] = { name="mcast_loop",        otype="INT64",  mode="rw", ltype="int" },
+		[11] = { name="sndbuf",            otype="UINT64", mode="rw", ltype="int" },
+		[12] = { name="rcvbuf",            otype="UINT64", mode="rw", ltype="int" },
+		[13] = { name="rcvmore",           otype="INT64",  mode="r",  ltype="int" },
+	},
+	{ ver_def = 'version_2_1',
+		[14] = { name="fd",                otype="FD",     mode="r",  ltype="int" },
+		[15] = { name="events",            otype="UINT32", mode="r",  ltype="int" },
+		[16] = { name="type",              otype="INT",    mode="r",  ltype="int" },
+		[17] = { name="linger",            otype="INT",    mode="rw", ltype="int" },
+		[18] = { name="reconnect_ivl",     otype="INT",    mode="rw", ltype="int" },
+		[19] = { name="backlog",           otype="INT",    mode="rw", ltype="int" },
+		[20] = { name="recovery_ivl_msec", otype="INT64",  mode="rw", ltype="int64_t" },
+		[21] = { name="reconnect_ivl_max", otype="INT",    mode="rw", ltype="int" },
+	},
+	{ ver_def = 'VERSION_3_0',
+		[1] =  { name="hwm",               otype="INT",    mode="rw",
+custom = [[
+ZMQ_Error lzmq_socket_set_hwm(ZMQ_Socket *sock, int value) {
+	int val;
+	int rc;
+	val = (int)value;
+	rc = zmq_setsockopt(sock, ZMQ_SNDHWM, &value, sizeof(value));
+	if(-1 == rc) return rc;
+	val = (int)value;
+	return zmq_setsockopt(sock, ZMQ_RCVHWM, &value, sizeof(value));
+}
+ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
+	size_t val_len;
+	int rc;
+	val_len = sizeof(value);
+	rc = zmq_getsockopt(sock, ZMQ_SNDHWM, value, &val_len);
+	if(-1 == rc) return rc;
+	val_len = sizeof(value);
+	return zmq_getsockopt(sock, ZMQ_RCVHWM, value, &val_len);
+}
+
+]] },
+		[2] =  { },
+		[3] =  { },
+		[4] =  { name="affinity",          otype="UINT64", mode="rw", ltype="uint64_t" },
+		[5] =  { name="identity",          otype="BLOB",   mode="rw", ltype="const char *" },
+		[6] =  { name="subscribe",         otype="BLOB",   mode="w",  ltype="const char *" },
+		[7] =  { name="unsubscribe",       otype="BLOB",   mode="w",  ltype="const char *" },
+		[8] =  { name="rate",              otype="INT",    mode="rw", ltype="int" },
+		[9] =  { name="recovery_ivl",      otype="INT",    mode="rw", ltype="int" },
+		[10] = { name="mcast_loop",        otype="INT",    mode="rw", ltype="int" },
+		[11] = { name="sndbuf",            otype="INT",    mode="rw", ltype="int" },
+		[12] = { name="rcvbuf",            otype="INT",    mode="rw", ltype="int" },
+		[13] = { name="rcvmore",           otype="INT",    mode="r",  ltype="int" },
+		[14] = { name="fd",                otype="FD",     mode="r",  ltype="int" },
+		[15] = { name="events",            otype="INT",    mode="r",  ltype="int" },
+		[16] = { name="type",              otype="INT",    mode="r",  ltype="int" },
+		[17] = { name="linger",            otype="INT",    mode="rw", ltype="int" },
+		[18] = { name="reconnect_ivl",     otype="INT",    mode="rw", ltype="int" },
+		[19] = { name="backlog",           otype="INT",    mode="rw", ltype="int" },
+		[20] = { },
+		[21] = { name="reconnect_ivl_max", otype="INT",    mode="rw", ltype="int" },
+		[22] = { name="maxmsgsize",        otype="INT64",  mode="rw", ltype="int64" },
+		[23] = { name="sndhwm",            otype="INT",    mode="rw", ltype="int" },
+		[24] = { name="rcvhwm",            otype="INT",    mode="rw", ltype="int" },
+		[25] = { name="multicast_hops",    otype="INT",    mode="rw", ltype="int" },
+		[26] = { },
+		[27] = { name="rcvtimeo",          otype="INT",    mode="rw", ltype="int" },
+		[28] = { name="sndtimeo",          otype="INT",    mode="rw", ltype="int" },
+		[29] = { name="rcvlabel",          otype="INT",    mode="rw", ltype="int" },
+	},
+}
+
+local function foreach_opt(func)
+	for i=1,#socket_options do
+		local ver_opts = socket_options[i]
+		for num,opt in pairs(ver_opts) do
+			if type(num) == 'number' and opt.name then
+				func(num, opt, ver_opts)
+			end
+		end
+	end
+end
+local function template(data, templ)
+	return templ:gsub("%${(.-)}", data)
+end
+
+-- do pre-processing of options.
+foreach_opt(function(num, opt)
+	opt.num = num
+	opt.DEF = "ZMQ_" .. opt.name:upper()
+	-- ctype & ffi_type
+	local ctype = OPT_TYPES[opt.otype]
+	opt.ctype = ctype
+	if opt.otype == 'BLOB' then
+		opt.ffi_type = 'string'
+		opt.set_len_param = ', size_t value_len'
+		opt.set_val_name = 'value'
+		opt.set_len_name = 'value_len'
+	elseif ctype ~= 'NONE' then
+		opt.ffi_type = ctype .. '[1]'
+		opt.set_len_param = ''
+		opt.set_val_name = '&value'
+		opt.set_len_name = 'sizeof(value)'
+	end
+	-- getter/setter names
+	for meth,prefix in pairs(get_set_prefix[opt.mode]) do
+		opt[meth] = prefix .. opt.name
+	end
+end)
+
+local add=function(t,val) return table.insert(t,val) end
+local options_c_code = {}
+
+local function endif(t, def)
+	return add(t, "#endif /* #if " .. def .. " */\n")
+end
+
+-- build C code for socket options setters/getters
+local last_ver
+foreach_opt(function(num, opt, ver)
+	if ver ~= last_ver then
+		if last_ver then
+			endif(options_c_code, last_ver.ver_def)
+		end
+		last_ver = ver
+		add(options_c_code, "#if " .. ver.ver_def .. "\n")
+	end
+	-- generate setter
+	local set = ''
+	local get = ''
+	if opt.c_set then
+		if opt.otype == 'BLOB' then
+			set = [[
+ZMQ_Error ${c_set}(ZMQ_Socket *sock, const char *value, size_t str_len) {
+	return zmq_setsockopt(sock, ${DEF}, value, str_len);
+]]
+		elseif opt.ctype == opt.ltype then
+			set = [[
+ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
+	return zmq_setsockopt(sock, ${DEF}, &value, sizeof(value));
+]]
+		else
+			set = [[
+ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
+	${ctype} val = (${ctype})value;
+	return zmq_setsockopt(sock, ${DEF}, &val, sizeof(val));
+]]
+		end
+		set = set .. "}\n\n"
+	end
+	-- generate getter
+	if opt.c_get then
+		if opt.otype == 'BLOB' then
+			get = [[
+ZMQ_Error ${c_get}(ZMQ_Socket *sock, char *value, size_t *len) {
+	return zmq_getsockopt(sock, ${DEF}, value, len);
+]]
+		elseif opt.ctype == opt.ltype then
+			get = [[
+ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
+	size_t val_len = sizeof(${ltype});
+	return zmq_getsockopt(sock, ${DEF}, value, &val_len);
+]]
+		else
+			get = [[
+ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
+	${ctype} val;
+	size_t val_len = sizeof(val);
+	int rc = zmq_getsockopt(sock, ${DEF}, &val, &val_len);
+	*value = (${ltype})val;
+	return rc;
+]]
+		end
+		get = get .. "}\n\n"
+	end
+	local templ
+	if opt.custom then
+		templ = opt.custom
+	else
+		templ = set .. get
+	end
+	add(options_c_code, template(opt,templ))
+end)
+endif(options_c_code, last_ver.ver_def)
+
+options_c_code = table.concat(options_c_code)
+print(options_c_code)
+
 object "ZMQ_Socket" {
 	error_on_null = "get_zmq_strerror()",
 	c_source [[
