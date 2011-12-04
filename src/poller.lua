@@ -83,14 +83,14 @@ function poller_mt:stop()
 	self.is_running = false
 end
 
-module(...)
+local M = {}
 
-function new(pre_alloc)
+function M.new(pre_alloc)
 	return setmetatable({
 		poller = zmq.ZMQ_Poller(pre_alloc),
 		callbacks = {},
 	}, poller_mt)
 end
 
-setmetatable(_M, {__call = function(tab, ...) return new(...) end})
+return setmetatable(M, {__call = function(tab, ...) return M.new(...) end})
 

@@ -85,26 +85,27 @@ local function new_thread(ctx, action, action_arg, ...)
 	}, thread_mt)
 end
 
-module(...)
+local M = {}
 
-function set_bootstrap_prelude(code)
+function M.set_bootstrap_prelude(code)
    bootstrap_code = bootstrap_pre .. code .. bootstrap_post
 end
 
-function runfile(ctx, file, ...)
+function M.runfile(ctx, file, ...)
 	return new_thread(ctx, 'runfile', file, ...)
 end
 
-function runstring(ctx, code, ...)
+function M.runstring(ctx, code, ...)
 	return new_thread(ctx, 'runstring', code, ...)
 end
 
 local parent_ctx = nil
-function set_parent_ctx(ctx)
+function M.set_parent_ctx(ctx)
 	parent_ctx = ctx
 end
 
-function get_parent_ctx(ctx)
+function M.get_parent_ctx(ctx)
 	return parent_ctx
 end
 
+return M
