@@ -39,33 +39,25 @@ int zmq_msg_init_size (zmq_msg_t *msg, size_t size);
 
 ]],
 	constructor "init" {
-		var_out{ "ZMQ_Error", "err" },
-		c_source[[
-	zmq_msg_t tmp;
-	${this} = &tmp;
-	${err} = zmq_msg_init(${this});
-]],
+		c_method_call "ZMQ_Error" "zmq_msg_init" {},
 	},
 	constructor "init_size" {
-		var_in{ "size_t", "size" },
-		var_out{ "ZMQ_Error", "err" },
-		c_source[[
-	zmq_msg_t tmp;
-	${this} = &tmp;
-	${err} = zmq_msg_init_size(${this}, ${size});
-]],
+		c_method_call "ZMQ_Error" "zmq_msg_init_size" { "size_t", "size" },
 	},
 	constructor "init_data" {
 		var_in{ "const char *", "data" },
-		var_out{ "ZMQ_Error", "err" },
+		c_method_call { "ZMQ_Error", "err" } "zmq_msg_init_size" { "size_t", "#data" },
 		c_source[[
-	zmq_msg_t tmp;
-	${this} = &tmp;
-	${err} = zmq_msg_init_size(${this}, ${data_len});
 	if(0 == ${err}) {
 		/* fill message */
 		memcpy(zmq_msg_data(${this}), ${data}, ${data_len});
 	}
+]],
+		ffi_source[[
+	if(0 == ${err}) then
+		-- fill message
+		ffi.copy(C.zmq_msg_data(${this}), ${data}, ${data_len})
+	end
 ]],
 	},
 	destructor {

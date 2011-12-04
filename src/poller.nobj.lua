@@ -272,13 +272,6 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 
 	constructor "new" {
 		var_in{ "unsigned int", "length", is_optional = true, default = 10 },
-		c_source "pre_src" [[
-	ZMQ_Poller poller;
-	${this} = &poller;
-]],
-		ffi_source [[
-	${this} = ffi.new("ZMQ_Poller")
-]],
 		c_method_call "void" "poller_init" { "unsigned int", "length" },
 	},
 	destructor "close" {
