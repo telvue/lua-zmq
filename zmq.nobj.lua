@@ -26,15 +26,10 @@ c_module "zmq" {
 use_globals = false,
 hide_meta_info = true,
 luajit_ffi = true,
-luajit_ffi_load_cmodule = "global",
+luajit_ffi_load_cmodule = true,
 
 sys_include "string.h",
 include "zmq.h",
-
-ffi_load { global = true,
-"zmq", -- default lib name.
-Windows = "libzmq", -- lib name for on windows.
-},
 
 --
 -- Module constants
