@@ -18,6 +18,12 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
+-------------------------------------------------------------------------------------
+--
+-- Generate ZeroMQ socket option code customized for each version of zmq (2.0,2.1,3.x)
+--
+-------------------------------------------------------------------------------------
+
 local OPT_TYPES = {
 NONE   = "NONE",
 INT    = "int",
@@ -34,7 +40,7 @@ w = { c_set = "lzmq_socket_", set='' },
 }
 
 local socket_options = {
-	{ ver_def = 'VERSION_2_0',
+	{ ver_def = 'VERSION_2_0', major = 2, minor = 0,
 		[1] =  { name="hwm",               otype="UINT64", mode="rw", ltype="int" },
 		[2] =  { },
 		[3] =  { name="swap",              otype="INT64",  mode="rw", ltype="int" },
@@ -49,7 +55,7 @@ local socket_options = {
 		[12] = { name="rcvbuf",            otype="UINT64", mode="rw", ltype="int" },
 		[13] = { name="rcvmore",           otype="INT64",  mode="r",  ltype="int" },
 	},
-	{ ver_def = 'version_2_1',
+	{ ver_def = 'VERSION_2_1', major = 2, minor = 1,
 		[14] = { name="fd",                otype="FD",     mode="r",  ltype="int" },
 		[15] = { name="events",            otype="UINT32", mode="r",  ltype="int" },
 		[16] = { name="type",              otype="INT",    mode="r",  ltype="int" },
@@ -59,7 +65,7 @@ local socket_options = {
 		[20] = { name="recovery_ivl_msec", otype="INT64",  mode="rw", ltype="int64_t" },
 		[21] = { name="reconnect_ivl_max", otype="INT",    mode="rw", ltype="int" },
 	},
-	{ ver_def = 'VERSION_3_0',
+	{ ver_def = 'VERSION_3_0', major = 3, minor = 0,
 		[1] =  { name="hwm",               otype="INT",    mode="rw",
 custom = [[
 ZMQ_Error lzmq_socket_set_hwm(ZMQ_Socket *sock, int value) {
@@ -102,7 +108,7 @@ ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 		[19] = { name="backlog",           otype="INT",    mode="rw", ltype="int" },
 		[20] = { },
 		[21] = { name="reconnect_ivl_max", otype="INT",    mode="rw", ltype="int" },
-		[22] = { name="maxmsgsize",        otype="INT64",  mode="rw", ltype="int64" },
+		[22] = { name="maxmsgsize",        otype="INT64",  mode="rw", ltype="int64_t" },
 		[23] = { name="sndhwm",            otype="INT",    mode="rw", ltype="int" },
 		[24] = { name="rcvhwm",            otype="INT",    mode="rw", ltype="int" },
 		[25] = { name="multicast_hops",    otype="INT",    mode="rw", ltype="int" },
@@ -112,24 +118,74 @@ ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 		[29] = { name="rcvlabel",          otype="INT",    mode="rw", ltype="int" },
 	},
 }
+local max_options = 50
 
 local function foreach_opt(func)
 	for i=1,#socket_options do
 		local ver_opts = socket_options[i]
-		for num,opt in pairs(ver_opts) do
-			if type(num) == 'number' and opt.name then
+		for num=1,max_options do
+			local opt = ver_opts[num]
+			if opt then
 				func(num, opt, ver_opts)
 			end
 		end
 	end
 end
+local add=function(t,val) return table.insert(t,val) end
 local function template(data, templ)
 	return templ:gsub("%${(.-)}", data)
 end
 
+local socket_methods = {}
+local ffi_opt_names = {}
+local max_methods = 0
+local function get_methods(opt, ver)
+	local num = opt.num
+	-- check if methods have been created
+	local methods = socket_methods[num]
+
+	if not methods then
+		add(ffi_opt_names, "\t\t[".. num .. "] = '" .. opt.name .. "',\n")
+		-- need to create methods info.
+		methods = {
+			num=num,
+			name=opt.name,
+			get=opt.get, set=opt.set, c_get=opt.c_get, c_set=opt.c_set,
+			ltype=opt.ltype, otype=opt.otype, mode=opt.mode,
+			versions = {},
+		}
+
+		-- initialize all version as not-supported.
+		for i=1,#socket_options do
+			local ver_opts = socket_options[i]
+			methods[ver_opts.ver_def] = false
+		end
+
+		if num > max_methods then max_methods = num end
+
+		socket_methods[num] = methods
+	end
+
+	-- mark this version as supporting the option.
+	methods[ver.ver_def] = true
+	add(methods.versions, ver)
+
+	return methods
+end
+
 -- do pre-processing of options.
-foreach_opt(function(num, opt)
+foreach_opt(function(num, opt, ver)
 	opt.num = num
+	if not opt.name then
+		opt.name = 'none'
+		opt.otype = 'NONE'
+		opt.DEF = 'unused'
+		return
+	end
+	-- track max option number for each version.
+	if not ver.max_opt or ver.max_opt < num then
+		ver.max_opt = num
+	end
 	opt.DEF = "ZMQ_" .. opt.name:upper()
 	-- ctype & ffi_type
 	local ctype = OPT_TYPES[opt.otype]
@@ -149,13 +205,22 @@ foreach_opt(function(num, opt)
 	for meth,prefix in pairs(get_set_prefix[opt.mode]) do
 		opt[meth] = prefix .. opt.name
 	end
+	-- create common list of option get/set methods.
+	local methods = get_methods(opt, ver)
 end)
 
-local add=function(t,val) return table.insert(t,val) end
 local options_c_code = {}
+local opt_types = {}
 
-local function endif(t, def)
-	return add(t, "#endif /* #if " .. def .. " */\n")
+local function if_def(def)
+	local code = "#if " .. def .. "\n"
+	add(options_c_code, code)
+	add(opt_types, code)
+end
+local function endif(def)
+	local code = "#endif /* #if " .. def .. " */\n"
+	add(options_c_code, code)
+	add(opt_types, code)
 end
 
 -- build C code for socket options setters/getters
@@ -163,11 +228,18 @@ local last_ver
 foreach_opt(function(num, opt, ver)
 	if ver ~= last_ver then
 		if last_ver then
-			endif(options_c_code, last_ver.ver_def)
+			endif(last_ver.ver_def)
 		end
 		last_ver = ver
-		add(options_c_code, "#if " .. ver.ver_def .. "\n")
+		if_def(ver.ver_def)
+		add(opt_types, template(ver,[[
+#define ${ver_def}_MAX_OPT ${max_opt}
+]]))
 	end
+	add(opt_types, template(opt,[[
+  OPT_TYPE_${otype},  /* ${num} ${DEF} */
+]]))
+	if opt.name == 'none' then return end
 	-- generate setter
 	local set = ''
 	local get = ''
@@ -224,14 +296,105 @@ ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
 	end
 	add(options_c_code, template(opt,templ))
 end)
-endif(options_c_code, last_ver.ver_def)
+endif(last_ver.ver_def)
+
+add(opt_types, [[
+#if VERSION_3_0
+#  define MAX_OPTS VERSION_3_0_MAX_OPT
+#else
+#  if VERSION_2_1
+#    define MAX_OPTS VERSION_2_1_MAX_OPT
+#  else
+#    define MAX_OPTS VERSION_2_0_MAX_OPT
+#  endif
+#endif
+};
+
+]])
 
 options_c_code = table.concat(options_c_code)
-print(options_c_code)
+opt_types = table.concat(opt_types)
+ffi_opt_names = table.concat(ffi_opt_names)
+
+local function tunpack(tab, idx, max)
+	if idx == max then return tab[idx] end
+	return tab[idx], tunpack(tab, idx + 1, max)
+end
+
+local function build_meth_if_def(meth)
+	local v = {}
+	for i=1,#socket_options do
+		local ver_opts = socket_options[i]
+		if meth[ver_opts.ver_def] then
+			v[#v+1] = ver_opts.ver_def
+		end
+	end
+	return v
+end
+
+local function build_option_methods()
+	local m = {}
+
+	for i=1,max_methods do
+		local meth = socket_methods[i]
+		if meth then
+			local ltype = meth.ltype
+			local name
+			-- get list of version defs for this method.
+			local if_defs = build_meth_if_def(meth)
+			-- generate getter method.
+			name = meth.get
+			if name then
+				local args = { ltype, "&value" }
+				local val_out = { ltype, "&value" }
+				if meth.otype == 'BLOB' then
+					val_out = { 'char *', "value", has_length = true }
+					args = { 'char *', "value", "size_t", "&#value" }
+				end
+				m[#m+1] = method (name) { if_defs = if_defs,
+					var_out(val_out),
+					c_method_call "ZMQ_Error" (meth.c_get) (args),
+				}
+			end
+			-- generate setter method.
+			name = meth.set
+			if name then
+				local args = { ltype, "value" }
+				if meth.otype == 'BLOB' then
+					args = { ltype, "value", "size_t", "#value" }
+				end
+				m[#m+1] = method (name) { if_defs = if_defs,
+					c_method_call "ZMQ_Error" (meth.c_set) (args),
+				}
+			end
+		end
+	end
+
+	return tunpack(m, 1, #m)
+end
+
+-------------------------------------------------------------------------------------
+--
+-- ZeroMQ socket object.
+--
+-------------------------------------------------------------------------------------
 
 object "ZMQ_Socket" {
 	error_on_null = "get_zmq_strerror()",
-	c_source [[
+	ffi_source [[
+-- detect zmq version
+local VERSION_2_0 = true
+local VERSION_2_1 = false
+local VERSION_3_0 = false
+local zver = _M.version()
+if zver[1] == 3 then
+	VERSION_2_0 = false
+	VERSION_3_0 = true
+elseif zver[1] == 2 and zver[2] == 1 then
+	VERSION_2_1 = true
+end
+]],
+	c_source ([[
 /* detect zmq version */
 #define VERSION_2_0 1
 #define VERSION_2_1 0
@@ -278,73 +441,8 @@ typedef int socket_t;
 #define OPT_TYPE_FD			6
 
 static const int opt_types[] = {
-#if VERSION_3_0
   OPT_TYPE_NONE,    /*  0 unused */
-  OPT_TYPE_INT,     /*  1 ZMQ_HWM for backwards compatibility */
-  OPT_TYPE_NONE,    /*  2 unused */
-  OPT_TYPE_NONE,    /*  3 unused */
-  OPT_TYPE_UINT64,  /*  4 ZMQ_AFFINITY */
-  OPT_TYPE_BLOB,    /*  5 ZMQ_IDENTITY */
-  OPT_TYPE_BLOB,    /*  6 ZMQ_SUBSCRIBE */
-  OPT_TYPE_BLOB,    /*  7 ZMQ_UNSUBSCRIBE */
-  OPT_TYPE_INT,     /*  8 ZMQ_RATE */
-  OPT_TYPE_INT,     /*  9 ZMQ_RECOVERY_IVL */
-  OPT_TYPE_INT,     /* 10 ZMQ_MCAST_LOOP */
-  OPT_TYPE_INT,     /* 11 ZMQ_SNDBUF */
-  OPT_TYPE_INT,     /* 12 ZMQ_RCVBUF */
-  OPT_TYPE_INT,     /* 13 ZMQ_RCVMORE */
-  OPT_TYPE_FD,      /* 14 ZMQ_FD */
-  OPT_TYPE_INT,     /* 15 ZMQ_EVENTS */
-  OPT_TYPE_INT,     /* 16 ZMQ_TYPE */
-  OPT_TYPE_INT,     /* 17 ZMQ_LINGER */
-  OPT_TYPE_INT,     /* 18 ZMQ_RECONNECT_IVL */
-  OPT_TYPE_INT,     /* 19 ZMQ_BACKLOG */
-  OPT_TYPE_NONE,    /* 20 unused */
-  OPT_TYPE_INT,     /* 21 ZMQ_RECONNECT_IVL_MAX */
-  OPT_TYPE_INT64,   /* 22 ZMQ_MAXMSGSIZE */
-  OPT_TYPE_INT,     /* 23 ZMQ_SNDHWM */
-  OPT_TYPE_INT,     /* 24 ZMQ_RCVHWM */
-  OPT_TYPE_INT,     /* 25 ZMQ_MULTICAST_HOPS */
-  OPT_TYPE_NONE,    /* 26 unused */
-  OPT_TYPE_INT,     /* 27 ZMQ_RCVTIMEO */
-  OPT_TYPE_INT,     /* 28 ZMQ_SNDTIMEO */
-  OPT_TYPE_INT,     /* 29 ZMQ_RCVLABEL */
-# define MAX_OPTS 29
-#else
-  /* options for versions below 3.0 */
-  OPT_TYPE_NONE,    /*  0 unused */
-  OPT_TYPE_UINT64,  /*  1 ZMQ_HWM */
-  OPT_TYPE_NONE,    /*  2 unused */
-  OPT_TYPE_INT64,   /*  3 ZMQ_SWAP */
-  OPT_TYPE_UINT64,  /*  4 ZMQ_AFFINITY */
-  OPT_TYPE_BLOB,    /*  5 ZMQ_IDENTITY */
-  OPT_TYPE_BLOB,    /*  6 ZMQ_SUBSCRIBE */
-  OPT_TYPE_BLOB,    /*  7 ZMQ_UNSUBSCRIBE */
-  OPT_TYPE_INT64,   /*  8 ZMQ_RATE */
-  OPT_TYPE_INT64,   /*  9 ZMQ_RECOVERY_IVL */
-  OPT_TYPE_INT64,   /* 10 ZMQ_MCAST_LOOP */
-  OPT_TYPE_UINT64,  /* 11 ZMQ_SNDBUF */
-  OPT_TYPE_UINT64,  /* 12 ZMQ_RCVBUF */
-  OPT_TYPE_INT64,   /* 13 ZMQ_RCVMORE */
-
-#  if VERSION_2_1
-  OPT_TYPE_FD,      /* 14 ZMQ_FD */
-  OPT_TYPE_UINT32,  /* 15 ZMQ_EVENTS */
-  OPT_TYPE_INT,     /* 16 ZMQ_TYPE */
-  OPT_TYPE_INT,     /* 17 ZMQ_LINGER */
-  OPT_TYPE_INT,     /* 18 ZMQ_RECONNECT_IVL */
-  OPT_TYPE_INT,     /* 19 ZMQ_BACKLOG */
-  OPT_TYPE_INT64,   /* 20 ZMQ_RECOVERY_IVL_MSEC */
-  OPT_TYPE_INT,     /* 21 ZMQ_RECONNECT_IVL_MAX */
-#    define MAX_OPTS 21
-#  else
-#    define MAX_OPTS 13
-#  endif
-#endif
-
-};
-
-]],
+]] .. opt_types .. options_c_code),
 
 	destructor "close" {
 		c_method_call "ZMQ_Error"  "zmq_close" {}
@@ -359,88 +457,32 @@ static const int opt_types[] = {
 int zmq_setsockopt (void *s, int option, const void *optval, size_t optvallen);
 int zmq_getsockopt (void *s, int option, void *optval, size_t *optvallen);
 ]],
-	ffi_source[[
-local option_len = {}
-local option_types = {}
-local option_tmps
+	ffi_source([[
+local option_gets = {}
+local option_sets = {}
 
 do
-	local zmq = _M
-	local zver = zmq.version()
-
-	local str_opt_temp_len = 255
-	option_tmps = setmetatable({}, {__index = function(tab, ctype)
-		local temp
-		if ctype == 'string' then
-			tmp = ffi.new('uint8_t[?]', str_opt_temp_len)
-		else
-			tmp = ffi.new(ctype, 0)
-		end
-		rawset(tab, ctype, tmp)
-		return tmp
+	local opt_name
+	local methods = _meth.${object_name}
+	setmetatable(option_gets,{__index = function(tab,opt)
+		local opt_name = opt_name[opt]
+		if not opt_name then return nil end
+		local method = methods[opt_name]
+		rawset(tab, opt, method)
+		return method
 	end})
-
-	local function def_opt(opt, ctype)
-		if not opt then return end
-		option_types[opt] = ctype
-		if ctype == 'string' then
-			option_len[opt] = str_opt_temp_len
-		else
-			option_len[opt] = ffi.sizeof(ctype)
-		end
-	end
-
-	if zver[1] == 2 then
-		def_opt(zmq.HWM,               'uint64_t[1]')
-		def_opt(zmq.SWAP,              'int64_t[1]')
-		def_opt(zmq.AFFINITY,          'uint64_t[1]')
-		def_opt(zmq.IDENTITY,          'string')
-		def_opt(zmq.SUBSCRIBE,         'string')
-		def_opt(zmq.UNSUBSCRIBE,       'string')
-		def_opt(zmq.RATE,              'int64_t[1]')
-		def_opt(zmq.RECOVERY_IVL,      'int64_t[1]')
-		def_opt(zmq.RECOVERY_IVL_MSEC, 'int64_t[1]')
-		def_opt(zmq.MCAST_LOOP,        'int64_t[1]')
-		def_opt(zmq.SNDBUF,            'uint64_t[1]')
-		def_opt(zmq.RCVBUF,            'uint64_t[1]')
-		def_opt(zmq.RCVMORE,           'int64_t[1]')
-		def_opt(zmq.FD,                'int[1]')
-		def_opt(zmq.EVENTS,            'uint32_t[1]')
-		def_opt(zmq.TYPE,              'int[1]')
-		def_opt(zmq.LINGER,            'int[1]')
-		def_opt(zmq.RECONNECT_IVL,     'int[1]')
-		def_opt(zmq.BACKLOG,           'int[1]')
-		def_opt(zmq.RECONNECT_IVL_MAX, 'int[1]')
-	elseif zver[1] == 3 then
-		def_opt(zmq.AFFINITY,          'uint64_t[1]')
-		def_opt(zmq.IDENTITY,          'string')
-		def_opt(zmq.SUBSCRIBE,         'string')
-		def_opt(zmq.UNSUBSCRIBE,       'string')
-		def_opt(zmq.RATE,              'int[1]')
-		def_opt(zmq.RECOVERY_IVL,      'int[1]')
-		def_opt(zmq.RECOVERY_IVL_MSEC, 'int[1]')
-		def_opt(zmq.MCAST_LOOP,        'int[1]')
-		def_opt(zmq.SNDBUF,            'int[1]')
-		def_opt(zmq.RCVBUF,            'int[1]')
-		def_opt(zmq.RCVMORE,           'int[1]')
-		def_opt(zmq.FD,                'int[1]')
-		def_opt(zmq.EVENTS,            'int[1]')
-		def_opt(zmq.TYPE,              'int[1]')
-		def_opt(zmq.LINGER,            'int[1]')
-		def_opt(zmq.RECONNECT_IVL,     'int[1]')
-		def_opt(zmq.BACKLOG,           'int[1]')
-		def_opt(zmq.RECONNECT_IVL_MAX, 'int[1]')
-		def_opt(zmq.MAXMSGSIZE,        'int64_t[1]')
-		def_opt(zmq.SNDHWM,            'int[1]')
-		def_opt(zmq.RCVHWM,            'int[1]')
-		def_opt(zmq.MULTICAST_HOPS,    'int[1]')
-		def_opt(zmq.RCVTIMEO,          'int[1]')
-		def_opt(zmq.SNDTIMEO,          'int[1]')
-		def_opt(zmq.RCVLABEL,          'int[1]')
-	end
+	setmetatable(option_sets,{__index = function(tab,opt)
+		local opt_name = opt_name[opt]
+		if not opt_name then return nil end
+		local method = methods[opt_name] or methods['set_' .. opt_name]
+		rawset(tab, opt, method)
+		return method
+	end})
+	opt_name = {
+]] .. ffi_opt_names .. [[}
 end
 
-]],
+]]),
 	method "setopt" {
 		var_in{ "uint32_t", "opt" },
 		var_in{ "<any>", "val" },
@@ -515,29 +557,9 @@ end
 finished:
 ]],
 		ffi_source[[
-	local ctype = option_types[${opt}]
-	local tval
-	local tval_len = 0
-	if ctype then
-		if ctype == 'string' then
-			tval = tostring(${val})
-			tval_len = #tval
-		else
-			tval = option_tmps[ctype]
-			tval[0] = ${val}
-			tval_len = option_len[${opt}]
-		end
-		${err} = C.zmq_setsockopt(${this}, ${opt}, tval, tval_len)
-	elseif ${opt} == zmq.HWM then
-		-- 3.0 backwards compatibility support for HWM.
-		ctype = option_types[zmq.SNDHWM]
-		tval = option_tmps[ctype]
-		tval[0] = ${val}
-		tval_len = option_len[zmq.SNDHWM]
-		${err} = C.zmq_setsockopt(${this}, zmq.SNDHWM, tval, tval_len)
-		if (-1 ~= ${err}) then
-			${err} = C.zmq_setsockopt(${this}, zmq.RCVHWM, tval, tval_len)
-		end
+	local set = option_sets[${opt}]
+	if set then
+		return set(${this},${val})
 	else
 		error("Invalid socket option.")
 	end
@@ -629,53 +651,12 @@ local tmp_val_len = ffi.new('size_t[1]', 4)
 	lua_pushnil(L);
 ]],
 		ffi_source[[
-	local ctype = option_types[${opt}]
-	local val
-	local val_len
-	if ctype then
-		val = option_tmps[ctype]
-		val_len = option_len[${opt}]
-		${err} = C.zmq_getsockopt(${this}, ${opt}, val, tmp_val_len)
+	local get = option_gets[${opt}]
+	if get then
+		return get(${this})
+	else
+		error("Invalid socket option.")
 	end
-	if ${err} == 0 then
-		if ctype == 'string' then
-			return ffi.string(val, tmp_val_len[0])
-		else
-			return tonumber(val[0])
-		end
-	end
-]],
-	},
-	ffi_source[[
-local ZMQ_EVENTS = _M.EVENTS
--- temp. values for 'events' function.
-local events_ctype = option_types[ZMQ_EVENTS]
-local events_tmp = option_tmps[events_ctype]
-local events_tmp_len = option_len[ZMQ_EVENTS]
-local events_tmp_size = ffi.sizeof(events_tmp)
-]],
-	method "events" {
-		var_out{ "uint32_t", "events" },
-		var_out{ "ZMQ_Error", "err" },
-		c_source[[
-#if VERSION_3_0
-	int val;
-	size_t val_len = sizeof(val);
-	${err} = zmq_getsockopt(${this}, ZMQ_EVENTS, &val, &val_len);
-	${events} = val;
-#else
-#  if VERSION_2_1
-	size_t val_len = sizeof(${events});
-	${err} = zmq_getsockopt(${this}, ZMQ_EVENTS, &(${events}), &val_len);
-#  else
-	luaL_error(L, "'events' method only supported in 0MQ version >= 2.1");
-#  endif
-#endif
-]],
-		ffi_source[[
-	events_tmp_len[0] = events_tmp_size
-	${err} = C.zmq_getsockopt(${this}, ZMQ_EVENTS, events_tmp, events_tmp_len);
-	${events} = events_tmp[0]
 ]],
 	},
 	--
@@ -757,5 +738,8 @@ local tmp_msg = ffi.new('zmq_msg_t')
 	C.zmq_msg_close(msg)
 ]],
 	},
+
+	-- build option set/get methods.  THIS MUST BE LAST.
+	build_option_methods(),
 }
 
