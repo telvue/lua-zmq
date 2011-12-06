@@ -96,7 +96,7 @@ ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 		[7] =  { name="unsubscribe",       otype="BLOB",   mode="w",  ltype="const char *" },
 		[8] =  { name="rate",              otype="INT",    mode="rw", ltype="int" },
 		[9] =  { name="recovery_ivl",      otype="INT",    mode="rw", ltype="int" },
-		[10] = { name="mcast_loop",        otype="INT",    mode="rw", ltype="int" },
+		[10] =  { },
 		[11] = { name="sndbuf",            otype="INT",    mode="rw", ltype="int" },
 		[12] = { name="rcvbuf",            otype="INT",    mode="rw", ltype="int" },
 		[13] = { name="rcvmore",           otype="INT",    mode="r",  ltype="int" },
@@ -115,7 +115,9 @@ ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 		[26] = { },
 		[27] = { name="rcvtimeo",          otype="INT",    mode="rw", ltype="int" },
 		[28] = { name="sndtimeo",          otype="INT",    mode="rw", ltype="int" },
-		[29] = { name="rcvlabel",          otype="INT",    mode="rw", ltype="int" },
+		[29] =  { },
+		[30] =  { },
+		[31] = { name="ipv4only",          otype="INT",    mode="rw", ltype="int" },
 	},
 }
 local max_options = 50
@@ -395,22 +397,6 @@ elseif zver[1] == 2 and zver[2] == 1 then
 end
 ]],
 	c_source ([[
-/* detect zmq version */
-#define VERSION_2_0 1
-#define VERSION_2_1 0
-#define VERSION_3_0 0
-#if defined(ZMQ_VERSION)
-#  if (ZMQ_VERSION >= ZMQ_MAKE_VERSION(2,1,0))
-#    undef VERSION_2_1
-#    define VERSION_2_1 1
-#  endif
-#  if (ZMQ_VERSION >= ZMQ_MAKE_VERSION(3,0,0))
-#    undef VERSION_2_0
-#    define VERSION_2_0 0
-#    undef VERSION_3_0
-#    define VERSION_3_0 1
-#  endif
-#endif
 
 /* detect really old ZeroMQ 2.0.x series. */
 #if !defined(ZMQ_RCVMORE)
@@ -426,7 +412,7 @@ typedef SOCKET socket_t;
 typedef int socket_t;
 #endif
 
-#if ZMQ_VERSION_MAJOR == 2
+#if VERSION_2_0
 #  define zmq_sendmsg      zmq_send
 #  define zmq_recvmsg      zmq_recv
 #endif

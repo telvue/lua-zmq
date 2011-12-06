@@ -207,12 +207,29 @@ typedef struct ffi_export_symbol {
 } ffi_export_symbol;
 #endif
 
+/* detect zmq version */
+#define VERSION_2_0 1
+#define VERSION_2_1 0
+#define VERSION_3_0 0
+#if defined(ZMQ_VERSION_MAJOR)
+#  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 1)
+#    undef VERSION_2_1
+#    define VERSION_2_1 1
+#  endif
+#  if (ZMQ_VERSION_MAJOR == 3)
+#    undef VERSION_2_0
+#    define VERSION_2_0 0
+#    undef VERSION_3_0
+#    define VERSION_3_0 1
+#  endif
+#endif
+
 #ifndef ZMQ_DONTWAIT
 #  define ZMQ_DONTWAIT     ZMQ_NOBLOCK
 #endif
-#if ZMQ_VERSION_MAJOR == 2
+#if VERSION_2_0
 #  define ZMQ_POLL_MSEC    1000 // zmq_poll is usec
-#elif ZMQ_VERSION_MAJOR == 3
+#elif VERSION_3_0
 #  define ZMQ_POLL_MSEC    1    // zmq_poll is msec
 #  ifndef ZMQ_HWM
 #    define ZMQ_HWM        1    // backwards compatibility
@@ -1201,9 +1218,9 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "\n"
 "ZMQ_Error lzmq_socket_set_sndtimeo(ZMQ_Socket *, int);\n"
 "\n"
-"ZMQ_Error lzmq_socket_rcvlabel(ZMQ_Socket *, int*);\n"
+"ZMQ_Error lzmq_socket_ipv4only(ZMQ_Socket *, int*);\n"
 "\n"
-"ZMQ_Error lzmq_socket_set_rcvlabel(ZMQ_Socket *, int);\n"
+"ZMQ_Error lzmq_socket_set_ipv4only(ZMQ_Socket *, int);\n"
 "\n"
 "typedef ZMQ_Error (*zmq_sendmsg_func)(ZMQ_Socket * this, zmq_msg_t * msg, int flags);\n"
 "\n"
@@ -1779,7 +1796,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "		[25] = 'multicast_hops',\n"
 "		[27] = 'rcvtimeo',\n"
 "		[28] = 'sndtimeo',\n"
-"		[29] = 'rcvlabel',\n"
+"		[31] = 'ipv4only',\n"
 "}\n"
 "end\n"
 "\n"
@@ -2088,7 +2105,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "end\n"
 "  local mcast_loop_value_tmp = ffi.new(\"int[1]\")\n"
 "-- method: mcast_loop\n"
-"if (VERSION_2_0 or VERSION_3_0) then\n"
+"if (VERSION_2_0) then\n"
 "function _meth.ZMQ_Socket.mcast_loop(self)\n"
 "  \n"
 "  local value1 = mcast_loop_value_tmp\n"
@@ -2101,7 +2118,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "end\n"
 "end\n"
 "-- method: set_mcast_loop\n"
-"if (VERSION_2_0 or VERSION_3_0) then\n"
+"if (VERSION_2_0) then\n"
 "function _meth.ZMQ_Socket.set_mcast_loop(self, value2)\n"
 "  \n"
 "  \n"
@@ -2534,30 +2551,30 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "  return true\n"
 "end\n"
 "end\n"
-"  local rcvlabel_value_tmp = ffi.new(\"int[1]\")\n"
-"-- method: rcvlabel\n"
+"  local ipv4only_value_tmp = ffi.new(\"int[1]\")\n"
+"-- method: ipv4only\n"
 "if (VERSION_3_0) then\n"
-"function _meth.ZMQ_Socket.rcvlabel(self)\n"
+"function _meth.ZMQ_Socket.ipv4only(self)\n"
 "  \n"
-"  local value1 = rcvlabel_value_tmp\n"
-"  local rc_lzmq_socket_rcvlabel2 = 0\n"
-"  rc_lzmq_socket_rcvlabel2 = C.lzmq_socket_rcvlabel(self, value1)\n"
-"  if (-1 == rc_lzmq_socket_rcvlabel2) then\n"
-"    return nil,error_code__ZMQ_Error__push(rc_lzmq_socket_rcvlabel2)\n"
+"  local value1 = ipv4only_value_tmp\n"
+"  local rc_lzmq_socket_ipv4only2 = 0\n"
+"  rc_lzmq_socket_ipv4only2 = C.lzmq_socket_ipv4only(self, value1)\n"
+"  if (-1 == rc_lzmq_socket_ipv4only2) then\n"
+"    return nil,error_code__ZMQ_Error__push(rc_lzmq_socket_ipv4only2)\n"
 "  end\n"
 "  return value1[0]\n"
 "end\n"
 "end\n"
-"-- method: set_rcvlabel\n"
+"-- method: set_ipv4only\n"
 "if (VERSION_3_0) then\n"
-"function _meth.ZMQ_Socket.set_rcvlabel(self, value2)\n"
+"function _meth.ZMQ_Socket.set_ipv4only(self, value2)\n"
 "  \n"
 "  \n"
-"  local rc_lzmq_socket_set_rcvlabel1 = 0\n"
-"  rc_lzmq_socket_set_rcvlabel1 = C.lzmq_socket_set_rcvlabel(self, value2)\n"
+"  local rc_lzmq_socket_set_ipv4only1 = 0\n"
+"  rc_lzmq_socket_set_ipv4only1 = C.lzmq_socket_set_ipv4only(self, value2)\n"
 "  -- check for error.\n"
-"  if (-1 == rc_lzmq_socket_set_rcvlabel1) then\n"
-"    return nil, error_code__ZMQ_Error__push(rc_lzmq_socket_set_rcvlabel1)\n"
+"  if (-1 == rc_lzmq_socket_set_ipv4only1) then\n"
+"    return nil, error_code__ZMQ_Error__push(rc_lzmq_socket_set_ipv4only1)\n"
 "  end\n"
 "  return true\n"
 "end\n"
@@ -2779,6 +2796,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "  return obj_type_ZMQ_Ctx_push(ctx1, 0)\n"
 "end\n"
 "-- method: device\n"
+"if (VERSION_2_0) then\n"
 "function _pub.zmq.device(device1, insock2, outsock3)\n"
 "  \n"
 "  \n"
@@ -2790,6 +2808,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "    return nil, error_code__ZMQ_Error__push(rc_zmq_device1)\n"
 "  end\n"
 "  return true\n"
+"end\n"
 "end\n"
 "-- method: stopwatch_start\n"
 "function _pub.zmq.stopwatch_start()\n"
@@ -2831,22 +2850,6 @@ static const char *get_zmq_strerror() {
 }
 
 
-/* detect zmq version */
-#define VERSION_2_0 1
-#define VERSION_2_1 0
-#define VERSION_3_0 0
-#if defined(ZMQ_VERSION)
-#  if (ZMQ_VERSION >= ZMQ_MAKE_VERSION(2,1,0))
-#    undef VERSION_2_1
-#    define VERSION_2_1 1
-#  endif
-#  if (ZMQ_VERSION >= ZMQ_MAKE_VERSION(3,0,0))
-#    undef VERSION_2_0
-#    define VERSION_2_0 0
-#    undef VERSION_3_0
-#    define VERSION_3_0 1
-#  endif
-#endif
 
 /* detect really old ZeroMQ 2.0.x series. */
 #if !defined(ZMQ_RCVMORE)
@@ -2862,7 +2865,7 @@ typedef SOCKET socket_t;
 typedef int socket_t;
 #endif
 
-#if ZMQ_VERSION_MAJOR == 2
+#if VERSION_2_0
 #  define zmq_sendmsg      zmq_send
 #  define zmq_recvmsg      zmq_recv
 #endif
@@ -2906,7 +2909,7 @@ static const int opt_types[] = {
   OPT_TYPE_INT,  /* 21 ZMQ_RECONNECT_IVL_MAX */
 #endif /* #if VERSION_2_1 */
 #if VERSION_3_0
-#define VERSION_3_0_MAX_OPT 29
+#define VERSION_3_0_MAX_OPT 31
   OPT_TYPE_INT,  /* 1 ZMQ_HWM */
   OPT_TYPE_NONE,  /* 2 unused */
   OPT_TYPE_NONE,  /* 3 unused */
@@ -2916,7 +2919,7 @@ static const int opt_types[] = {
   OPT_TYPE_BLOB,  /* 7 ZMQ_UNSUBSCRIBE */
   OPT_TYPE_INT,  /* 8 ZMQ_RATE */
   OPT_TYPE_INT,  /* 9 ZMQ_RECOVERY_IVL */
-  OPT_TYPE_INT,  /* 10 ZMQ_MCAST_LOOP */
+  OPT_TYPE_NONE,  /* 10 unused */
   OPT_TYPE_INT,  /* 11 ZMQ_SNDBUF */
   OPT_TYPE_INT,  /* 12 ZMQ_RCVBUF */
   OPT_TYPE_INT,  /* 13 ZMQ_RCVMORE */
@@ -2935,7 +2938,9 @@ static const int opt_types[] = {
   OPT_TYPE_NONE,  /* 26 unused */
   OPT_TYPE_INT,  /* 27 ZMQ_RCVTIMEO */
   OPT_TYPE_INT,  /* 28 ZMQ_SNDTIMEO */
-  OPT_TYPE_INT,  /* 29 ZMQ_RCVLABEL */
+  OPT_TYPE_NONE,  /* 29 unused */
+  OPT_TYPE_NONE,  /* 30 unused */
+  OPT_TYPE_INT,  /* 31 ZMQ_IPV4ONLY */
 #endif /* #if VERSION_3_0 */
 #if VERSION_3_0
 #  define MAX_OPTS VERSION_3_0_MAX_OPT
@@ -3202,15 +3207,6 @@ ZMQ_Error lzmq_socket_recovery_ivl(ZMQ_Socket *sock, int *value) {
 	return zmq_getsockopt(sock, ZMQ_RECOVERY_IVL, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_mcast_loop(ZMQ_Socket *sock, int value) {
-	return zmq_setsockopt(sock, ZMQ_MCAST_LOOP, &value, sizeof(value));
-}
-
-ZMQ_Error lzmq_socket_mcast_loop(ZMQ_Socket *sock, int *value) {
-	size_t val_len = sizeof(int);
-	return zmq_getsockopt(sock, ZMQ_MCAST_LOOP, value, &val_len);
-}
-
 ZMQ_Error lzmq_socket_set_sndbuf(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_SNDBUF, &value, sizeof(value));
 }
@@ -3339,13 +3335,13 @@ ZMQ_Error lzmq_socket_sndtimeo(ZMQ_Socket *sock, int *value) {
 	return zmq_getsockopt(sock, ZMQ_SNDTIMEO, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_rcvlabel(ZMQ_Socket *sock, int value) {
-	return zmq_setsockopt(sock, ZMQ_RCVLABEL, &value, sizeof(value));
+ZMQ_Error lzmq_socket_set_ipv4only(ZMQ_Socket *sock, int value) {
+	return zmq_setsockopt(sock, ZMQ_IPV4ONLY, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_rcvlabel(ZMQ_Socket *sock, int *value) {
+ZMQ_Error lzmq_socket_ipv4only(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
-	return zmq_getsockopt(sock, ZMQ_RCVLABEL, value, &val_len);
+	return zmq_getsockopt(sock, ZMQ_IPV4ONLY, value, &val_len);
 }
 
 #endif /* #if VERSION_3_0 */
@@ -4453,7 +4449,7 @@ static int ZMQ_Socket__set_recovery_ivl__meth(lua_State *L) {
 #endif
 
 /* method: mcast_loop */
-#if (VERSION_2_0|VERSION_3_0)
+#if (VERSION_2_0)
 static int ZMQ_Socket__mcast_loop__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value1 = 0;
@@ -4470,7 +4466,7 @@ static int ZMQ_Socket__mcast_loop__meth(lua_State *L) {
 #endif
 
 /* method: set_mcast_loop */
-#if (VERSION_2_0|VERSION_3_0)
+#if (VERSION_2_0)
 static int ZMQ_Socket__set_mcast_loop__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value2 = luaL_checkinteger(L,2);
@@ -5024,34 +5020,34 @@ static int ZMQ_Socket__set_sndtimeo__meth(lua_State *L) {
 }
 #endif
 
-/* method: rcvlabel */
+/* method: ipv4only */
 #if (VERSION_3_0)
-static int ZMQ_Socket__rcvlabel__meth(lua_State *L) {
+static int ZMQ_Socket__ipv4only__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value1 = 0;
-  ZMQ_Error rc_lzmq_socket_rcvlabel2 = 0;
-  rc_lzmq_socket_rcvlabel2 = lzmq_socket_rcvlabel(this1, &(value1));
-  if(!(-1 == rc_lzmq_socket_rcvlabel2)) {
+  ZMQ_Error rc_lzmq_socket_ipv4only2 = 0;
+  rc_lzmq_socket_ipv4only2 = lzmq_socket_ipv4only(this1, &(value1));
+  if(!(-1 == rc_lzmq_socket_ipv4only2)) {
     lua_pushinteger(L, value1);
   } else {
     lua_pushnil(L);
   }
-  error_code__ZMQ_Error__push(L, rc_lzmq_socket_rcvlabel2);
+  error_code__ZMQ_Error__push(L, rc_lzmq_socket_ipv4only2);
   return 2;
 }
 #endif
 
-/* method: set_rcvlabel */
+/* method: set_ipv4only */
 #if (VERSION_3_0)
-static int ZMQ_Socket__set_rcvlabel__meth(lua_State *L) {
+static int ZMQ_Socket__set_ipv4only__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value2 = luaL_checkinteger(L,2);
-  ZMQ_Error rc_lzmq_socket_set_rcvlabel1 = 0;
-  rc_lzmq_socket_set_rcvlabel1 = lzmq_socket_set_rcvlabel(this1, value2);
+  ZMQ_Error rc_lzmq_socket_set_ipv4only1 = 0;
+  rc_lzmq_socket_set_ipv4only1 = lzmq_socket_set_ipv4only(this1, value2);
   /* check for error. */
-  if((-1 == rc_lzmq_socket_set_rcvlabel1)) {
+  if((-1 == rc_lzmq_socket_set_ipv4only1)) {
     lua_pushnil(L);
-      error_code__ZMQ_Error__push(L, rc_lzmq_socket_set_rcvlabel1);
+      error_code__ZMQ_Error__push(L, rc_lzmq_socket_set_ipv4only1);
   } else {
     lua_pushboolean(L, 1);
     lua_pushnil(L);
@@ -5330,6 +5326,7 @@ static int zmq__init_ctx__func(lua_State *L) {
 }
 
 /* method: device */
+#if (VERSION_2_0)
 static int zmq__device__func(lua_State *L) {
   int device1 = luaL_checkinteger(L,1);
   ZMQ_Socket * insock2 = obj_type_ZMQ_Socket_check(L,2);
@@ -5346,6 +5343,7 @@ static int zmq__device__func(lua_State *L) {
   }
   return 2;
 }
+#endif
 
 /* method: stopwatch_start */
 static int zmq__stopwatch_start__func(lua_State *L) {
@@ -5895,10 +5893,10 @@ static const luaL_reg obj_ZMQ_Socket_methods[] = {
 #if (VERSION_2_0|VERSION_3_0)
   {"set_recovery_ivl", ZMQ_Socket__set_recovery_ivl__meth},
 #endif
-#if (VERSION_2_0|VERSION_3_0)
+#if (VERSION_2_0)
   {"mcast_loop", ZMQ_Socket__mcast_loop__meth},
 #endif
-#if (VERSION_2_0|VERSION_3_0)
+#if (VERSION_2_0)
   {"set_mcast_loop", ZMQ_Socket__set_mcast_loop__meth},
 #endif
 #if (VERSION_2_0|VERSION_3_0)
@@ -5992,10 +5990,10 @@ static const luaL_reg obj_ZMQ_Socket_methods[] = {
   {"set_sndtimeo", ZMQ_Socket__set_sndtimeo__meth},
 #endif
 #if (VERSION_3_0)
-  {"rcvlabel", ZMQ_Socket__rcvlabel__meth},
+  {"ipv4only", ZMQ_Socket__ipv4only__meth},
 #endif
 #if (VERSION_3_0)
-  {"set_rcvlabel", ZMQ_Socket__set_rcvlabel__meth},
+  {"set_ipv4only", ZMQ_Socket__set_ipv4only__meth},
 #endif
   {NULL, NULL}
 };
@@ -6117,7 +6115,9 @@ static const luaL_reg zmq_function[] = {
   {"version", zmq__version__func},
   {"init", zmq__init__func},
   {"init_ctx", zmq__init_ctx__func},
+#if (VERSION_2_0)
   {"device", zmq__device__func},
+#endif
   {"stopwatch_start", zmq__stopwatch_start__func},
   {"sleep", zmq__sleep__func},
   {"dump_ffi", zmq__dump_ffi__func},

@@ -32,12 +32,29 @@ sys_include "string.h",
 include "zmq.h",
 
 c_source "typedefs" [[
+/* detect zmq version */
+#define VERSION_2_0 1
+#define VERSION_2_1 0
+#define VERSION_3_0 0
+#if defined(ZMQ_VERSION_MAJOR)
+#  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 1)
+#    undef VERSION_2_1
+#    define VERSION_2_1 1
+#  endif
+#  if (ZMQ_VERSION_MAJOR == 3)
+#    undef VERSION_2_0
+#    define VERSION_2_0 0
+#    undef VERSION_3_0
+#    define VERSION_3_0 1
+#  endif
+#endif
+
 #ifndef ZMQ_DONTWAIT
 #  define ZMQ_DONTWAIT     ZMQ_NOBLOCK
 #endif
-#if ZMQ_VERSION_MAJOR == 2
+#if VERSION_2_0
 #  define ZMQ_POLL_MSEC    1000 // zmq_poll is usec
-#elif ZMQ_VERSION_MAJOR == 3
+#elif VERSION_3_0
 #  define ZMQ_POLL_MSEC    1    // zmq_poll is msec
 #  ifndef ZMQ_HWM
 #    define ZMQ_HWM        1    // backwards compatibility
@@ -181,7 +198,7 @@ c_function "init_ctx" {
 	end
 ]],
 },
-c_function "device" {
+c_function "device" { if_defs = "VERSION_2_0",
 	c_call "ZMQ_Error" "zmq_device"
 		{ "int", "device", "ZMQ_Socket *", "insock", "ZMQ_Socket *", "outsock" },
 },
