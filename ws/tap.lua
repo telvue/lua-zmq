@@ -1,3 +1,4 @@
+-- Copyright (c) 2011, Robert G. Jakabosky <bobby@sharedrealm.com> All rights reserved.
 
 local gui_enabled = gui_enabled
 local register_menu = register_menu

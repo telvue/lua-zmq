@@ -1,4 +1,4 @@
--- Copyright (c) 2010, Robert G. Jakabosky <bobby@sharedrealm.com> All rights reserved.
+-- Copyright (c) 2011, Robert G. Jakabosky <bobby@sharedrealm.com> All rights reserved.
 
 -- cache globals to local for speed.
 local format=string.format
