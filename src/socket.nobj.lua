@@ -693,7 +693,7 @@ local tmp_msg = ffi.new('zmq_msg_t')
 	if(0 == ${err}) {
 		/* receive message */
 		${err} = zmq_recvmsg(${this}, &msg, ${flags});
-		if(0 == ${err}) {
+		if(${err} >= 0) {
 			${data} = zmq_msg_data(&msg);
 			${data_len} = zmq_msg_size(&msg);
 		}
@@ -712,7 +712,7 @@ local tmp_msg = ffi.new('zmq_msg_t')
 
 	-- receive message
 	${err} = zmq_recvmsg(${this}, msg, ${flags})
-	if 0 == ${err} then
+	if ${err} >= 0 then
 		local data = ffi.string(C.zmq_msg_data(msg), C.zmq_msg_size(msg))
 		-- close message
 		C.zmq_msg_close(msg)
