@@ -364,7 +364,6 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 			msg = lua_tostring(L, -1);
 		}
 		printf("Failed to install FFI-based bindings: %s\n", msg);
-lua_error(L);
 		lua_pop(L, 1); /* pop error message. */
 	}
 	return err;
@@ -1041,11 +1040,13 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "local type = type\n"
 "local tonumber = tonumber\n"
 "local tostring = tostring\n"
-"local sformat = string.format\n"
+"local sformat = require\"string\".format\n"
 "local rawset = rawset\n"
 "local setmetatable = setmetatable\n"
+"local package = (require\"package\") or {}\n"
 "local p_config = package.config\n"
 "local p_cpath = package.cpath\n"
+"\n"
 "\n"
 "local ffi_load_cmodule\n"
 "\n"
