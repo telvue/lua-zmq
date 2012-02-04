@@ -23,6 +23,7 @@ set_variable_format "%s%d"
 
 c_module "zmq" {
 -- module settings.
+module_globals = true, -- support old code that doesn't do: local zmq = require"zmq"
 use_globals = false,
 hide_meta_info = true,
 luajit_ffi = true,

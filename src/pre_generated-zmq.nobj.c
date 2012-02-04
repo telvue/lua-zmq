@@ -11,6 +11,7 @@
 #include "lualib.h"
 
 #define REG_PACKAGE_IS_CONSTRUCTOR 0
+#define REG_MODULES_AS_GLOBALS 1
 #define REG_OBJECTS_AS_GLOBALS 0
 #define OBJ_DATA_HIDDEN_METATABLE 1
 #define USE_FIELD_GET_SET_METHODS 0
@@ -372,6 +373,10 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 
 #ifndef REG_PACKAGE_IS_CONSTRUCTOR
 #define REG_PACKAGE_IS_CONSTRUCTOR 1
+#endif
+
+#ifndef REG_MODULES_AS_GLOBALS
+#define REG_MODULES_AS_GLOBALS 0
 #endif
 
 #ifndef REG_OBJECTS_AS_GLOBALS
@@ -1082,6 +1087,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "end\n"
 "\n"
 "local _M, _priv, reg_table = ...\n"
+"local REG_MODULES_AS_GLOBALS = false\n"
 "local REG_OBJECTS_AS_GLOBALS = false\n"
 "local C = ffi.C\n"
 "\n"
@@ -1366,6 +1372,7 @@ static const char zmq_ffi_lua_code[] = "local ffi=require\"ffi\"\n"
 "\n"
 "]]\n"
 "\n"
+"REG_MODULES_AS_GLOBALS = true\n"
 "REG_OBJECTS_AS_GLOBALS = false\n"
 "local _pub = {}\n"
 "local _meth = {}\n"
@@ -6653,8 +6660,12 @@ LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 	create_object_instance_cache(L);
 
 	/* module table. */
+#if REG_MODULES_AS_GLOBALS
+	luaL_register(L, "zmq", zmq_function);
+#else
 	lua_newtable(L);
 	luaL_register(L, NULL, zmq_function);
+#endif
 
 	/* register module constants. */
 	obj_type_register_constants(L, zmq_constants, -1, false);
