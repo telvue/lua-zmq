@@ -191,7 +191,7 @@ typedef struct reg_sub_module {
 	const obj_base  *bases;
 	const obj_field *fields;
 	const obj_const *constants;
-	bool            bidirectional_consts;
+	int             bidirectional_consts;
 } reg_sub_module;
 
 #define OBJ_UDATA_FLAG_OWN (1<<0)
@@ -794,7 +794,7 @@ static int obj_constructor_call_wrapper(lua_State *L) {
 }
 
 static void obj_type_register_constants(lua_State *L, const obj_const *constants, int tab_idx,
-		bool bidirectional) {
+		int bidirectional) {
 	/* register constants. */
 	while(constants->name != NULL) {
 		lua_pushstring(L, constants->name);
@@ -6595,12 +6595,12 @@ static const obj_const zmq_constants[] = {
 
 
 static const reg_sub_module reg_sub_modules[] = {
-  { &(obj_type_ZErrors), REG_META, obj_ZErrors_pub_funcs, obj_ZErrors_methods, obj_ZErrors_metas, NULL, NULL, obj_ZErrors_constants, false},
-  { &(obj_type_zmq_msg_t), REG_OBJECT, obj_zmq_msg_t_pub_funcs, obj_zmq_msg_t_methods, obj_zmq_msg_t_metas, obj_zmq_msg_t_bases, obj_zmq_msg_t_fields, obj_zmq_msg_t_constants, false},
-  { &(obj_type_ZMQ_Socket), REG_OBJECT, obj_ZMQ_Socket_pub_funcs, obj_ZMQ_Socket_methods, obj_ZMQ_Socket_metas, obj_ZMQ_Socket_bases, obj_ZMQ_Socket_fields, obj_ZMQ_Socket_constants, false},
-  { &(obj_type_ZMQ_Poller), REG_OBJECT, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants, false},
-  { &(obj_type_ZMQ_Ctx), REG_OBJECT, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants, false},
-  { &(obj_type_ZMQ_StopWatch), REG_OBJECT, obj_ZMQ_StopWatch_pub_funcs, obj_ZMQ_StopWatch_methods, obj_ZMQ_StopWatch_metas, obj_ZMQ_StopWatch_bases, obj_ZMQ_StopWatch_fields, obj_ZMQ_StopWatch_constants, false},
+  { &(obj_type_ZErrors), REG_META, obj_ZErrors_pub_funcs, obj_ZErrors_methods, obj_ZErrors_metas, NULL, NULL, obj_ZErrors_constants, 0},
+  { &(obj_type_zmq_msg_t), REG_OBJECT, obj_zmq_msg_t_pub_funcs, obj_zmq_msg_t_methods, obj_zmq_msg_t_metas, obj_zmq_msg_t_bases, obj_zmq_msg_t_fields, obj_zmq_msg_t_constants, 0},
+  { &(obj_type_ZMQ_Socket), REG_OBJECT, obj_ZMQ_Socket_pub_funcs, obj_ZMQ_Socket_methods, obj_ZMQ_Socket_metas, obj_ZMQ_Socket_bases, obj_ZMQ_Socket_fields, obj_ZMQ_Socket_constants, 0},
+  { &(obj_type_ZMQ_Poller), REG_OBJECT, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants, 0},
+  { &(obj_type_ZMQ_Ctx), REG_OBJECT, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants, 0},
+  { &(obj_type_ZMQ_StopWatch), REG_OBJECT, obj_ZMQ_StopWatch_pub_funcs, obj_ZMQ_StopWatch_methods, obj_ZMQ_StopWatch_metas, obj_ZMQ_StopWatch_bases, obj_ZMQ_StopWatch_fields, obj_ZMQ_StopWatch_constants, 0},
   {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, false}
 };
 
