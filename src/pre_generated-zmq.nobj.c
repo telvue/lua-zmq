@@ -6601,7 +6601,7 @@ static const reg_sub_module reg_sub_modules[] = {
   { &(obj_type_ZMQ_Poller), REG_OBJECT, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants, 0},
   { &(obj_type_ZMQ_Ctx), REG_OBJECT, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants, 0},
   { &(obj_type_ZMQ_StopWatch), REG_OBJECT, obj_ZMQ_StopWatch_pub_funcs, obj_ZMQ_StopWatch_methods, obj_ZMQ_StopWatch_metas, obj_ZMQ_StopWatch_bases, obj_ZMQ_StopWatch_fields, obj_ZMQ_StopWatch_constants, 0},
-  {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, false}
+  {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0}
 };
 
 
@@ -6668,7 +6668,7 @@ LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 #endif
 
 	/* register module constants. */
-	obj_type_register_constants(L, zmq_constants, -1, false);
+	obj_type_register_constants(L, zmq_constants, -1, 0);
 
 	for(; submodules->func != NULL ; submodules++) {
 		lua_pushcfunction(L, submodules->func);
