@@ -39,6 +39,9 @@
 
 #ifdef __WINDOWS__
 
+/* disable FFI bindings for windows, it is broken right now. */
+#undef LUAJIT_FFI
+#define LUAJIT_FFI 0
 /* for MinGW32 compiler need to include <stdint.h> */
 #ifdef __GNUC__
 #include <stdint.h>
