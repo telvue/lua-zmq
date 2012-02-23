@@ -723,7 +723,7 @@ local tmp_msg = ffi.new('zmq_msg_t')
 	end
 
 	-- receive message
-	${err} = zmq_recvmsg(${this}, msg, ${flags})
+	${err} = C.zmq_recvmsg(${this}, msg, ${flags})
 	if ${err} >= 0 then
 		local data = ffi.string(C.zmq_msg_data(msg), C.zmq_msg_size(msg))
 		-- close message
