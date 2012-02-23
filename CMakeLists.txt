@@ -31,7 +31,7 @@ if(NOT ${LUA51_FOUND})
 endif()
 if(WIN32)
 	set(COMMON_CFLAGS "${COMMON_CFLAGS} -I${LUA_INCLUDE_DIR}")
-	set(COMMON_LDFLAGS "${COMMON_LDFLAGS} ${LUA_LIBRARY}")
+	set(COMMON_LDFLAGS "${COMMON_LDFLAGS} ${LUA_LIBRARY} -Wl,--export-all-symbols")
 endif()
 ## MAC OSX needs extra linker flags
 if(APPLE)
