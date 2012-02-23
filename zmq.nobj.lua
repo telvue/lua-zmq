@@ -27,7 +27,13 @@ module_globals = true, -- support old code that doesn't do: local zmq = require"
 use_globals = false,
 hide_meta_info = true,
 luajit_ffi = true,
+-- needed for functions exported from module.
 luajit_ffi_load_cmodule = true,
+
+ffi_load {
+"zmq", -- default lib name.
+Windows = "libzmq", -- lib name for on windows.
+},
 
 sys_include "string.h",
 include "zmq.h",

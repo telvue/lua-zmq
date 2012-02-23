@@ -355,7 +355,7 @@ local function build_option_methods()
 				end
 				m[#m+1] = method (name) { if_defs = if_defs,
 					var_out(val_out),
-					c_method_call "ZMQ_Error" (meth.c_get) (args),
+					c_export_method_call "ZMQ_Error" (meth.c_get) (args),
 				}
 			end
 			-- generate setter method.
@@ -366,7 +366,7 @@ local function build_option_methods()
 					args = { ltype, "value", "size_t", "#value" }
 				end
 				m[#m+1] = method (name) { if_defs = if_defs,
-					c_method_call "ZMQ_Error" (meth.c_set) (args),
+					c_export_method_call "ZMQ_Error" (meth.c_set) (args),
 				}
 			end
 		end
@@ -383,7 +383,8 @@ end
 
 object "ZMQ_Socket" {
 	error_on_null = "get_zmq_strerror()",
-	ffi_source [[
+	ffi_source "ffi_pre_cdef" [[
+
 -- detect zmq version
 local VERSION_2_0 = true
 local VERSION_2_1 = false
@@ -394,6 +395,17 @@ if zver[1] == 3 then
 	VERSION_3_0 = true
 elseif zver[1] == 2 and zver[2] == 1 then
 	VERSION_2_1 = true
+end
+
+if VERSION_2_0 then
+	ffi.cdef[==[
+typedef int ZMQ_Error;
+typedef struct ZMQ_Socket ZMQ_Socket;
+typedef struct zmq_msg_t zmq_msg_t;
+
+ZMQ_Error zmq_sendmsg(ZMQ_Socket *sock, zmq_msg_t *msg, int flags) __asm__("zmq_send");
+ZMQ_Error zmq_recvmsg(ZMQ_Socket *sock, zmq_msg_t *msg, int flags) __asm__("zmq_recv");
+]==]
 end
 ]],
 	c_source ([[
@@ -649,7 +661,7 @@ local tmp_val_len = ffi.new('size_t[1]', 4)
 	-- zmq_send
 	--
 	method "send_msg" {
-		c_export_method_call "ZMQ_Error" "zmq_sendmsg" { "zmq_msg_t *", "msg", "int", "flags?" },
+		c_method_call "ZMQ_Error" "zmq_sendmsg" { "zmq_msg_t *", "msg", "int", "flags?" },
 	},
 	-- create helper function for `zmq_send`
 	c_source[[
@@ -670,14 +682,14 @@ ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, i
 }
 ]],
 	method "send" {
-		c_method_call "ZMQ_Error" "simple_zmq_send"
+		c_export_method_call "ZMQ_Error" "simple_zmq_send"
 			{ "const char *", "data", "size_t", "#data", "int", "flags?"}
 	},
 	--
 	-- zmq_recv
 	--
 	method "recv_msg" {
-		c_export_method_call "ZMQ_Error" "zmq_recvmsg" { "zmq_msg_t *", "msg", "int", "flags?" },
+		c_method_call "ZMQ_Error" "zmq_recvmsg" { "zmq_msg_t *", "msg", "int", "flags?" },
 	},
 	ffi_source[[
 local tmp_msg = ffi.new('zmq_msg_t')
