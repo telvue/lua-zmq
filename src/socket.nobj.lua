@@ -248,17 +248,17 @@ foreach_opt(function(num, opt, ver)
 	if opt.c_set then
 		if opt.otype == 'BLOB' then
 			set = [[
-ZMQ_Error ${c_set}(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error ${c_set}(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ${DEF}, value, str_len);
 ]]
 		elseif opt.ctype == opt.ltype then
 			set = [[
-ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
+LUA_NOBJ_API ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
 	return zmq_setsockopt(sock, ${DEF}, &value, sizeof(value));
 ]]
 		else
 			set = [[
-ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
+LUA_NOBJ_API ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
 	${ctype} val = (${ctype})value;
 	return zmq_setsockopt(sock, ${DEF}, &val, sizeof(val));
 ]]
@@ -269,18 +269,18 @@ ZMQ_Error ${c_set}(ZMQ_Socket *sock, ${ltype} value) {
 	if opt.c_get then
 		if opt.otype == 'BLOB' then
 			get = [[
-ZMQ_Error ${c_get}(ZMQ_Socket *sock, char *value, size_t *len) {
+LUA_NOBJ_API ZMQ_Error ${c_get}(ZMQ_Socket *sock, char *value, size_t *len) {
 	return zmq_getsockopt(sock, ${DEF}, value, len);
 ]]
 		elseif opt.ctype == opt.ltype then
 			get = [[
-ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
+LUA_NOBJ_API ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
 	size_t val_len = sizeof(${ltype});
 	return zmq_getsockopt(sock, ${DEF}, value, &val_len);
 ]]
 		else
 			get = [[
-ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
+LUA_NOBJ_API ZMQ_Error ${c_get}(ZMQ_Socket *sock, ${ltype} *value) {
 	${ctype} val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ${DEF}, &val, &val_len);
@@ -665,7 +665,7 @@ local tmp_val_len = ffi.new('size_t[1]', 4)
 	},
 	-- create helper function for `zmq_send`
 	c_source[[
-ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
+LUA_NOBJ_API ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
 	ZMQ_Error err;
 	zmq_msg_t msg;
 	/* initialize message */

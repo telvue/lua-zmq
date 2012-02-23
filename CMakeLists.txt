@@ -31,7 +31,10 @@ if(NOT ${LUA51_FOUND})
 endif()
 if(WIN32)
 	set(COMMON_CFLAGS "${COMMON_CFLAGS} -I${LUA_INCLUDE_DIR}")
-	set(COMMON_LDFLAGS "${COMMON_LDFLAGS} ${LUA_LIBRARY} -Wl,--export-all-symbols")
+	set(COMMON_LDFLAGS "${COMMON_LDFLAGS} ${LUA_LIBRARY}")
+	if(NOT MSVC)
+		set(COMMON_LDFLAGS "${COMMON_LDFLAGS} -Wl,--export-all-symbols")
+	endif()
 endif()
 ## MAC OSX needs extra linker flags
 if(APPLE)
@@ -48,8 +51,13 @@ if(WIN32)
 endif()
 if(IS_DIRECTORY ${ZMQ_PATH})
 	set(COMMON_CFLAGS "${COMMON_CFLAGS} -I${ZMQ_PATH}/include")
-	set(COMMON_LDFLAGS "${COMMON_LDFLAGS} -L${ZMQ_PATH}/lib")
-	set(COMMON_LIBS "${COMMON_LIBS};zmq")
+	if(MSVC)
+		set(COMMON_LIBS "${COMMON_LIBS};libzmq")
+	else()
+		set(COMMON_LDFLAGS "${COMMON_LDFLAGS} -L${ZMQ_PATH}/lib")
+		set(COMMON_LIBS "${COMMON_LIBS};zmq")
+	endif()
+	link_directories(${ZMQ_PATH}/lib)
 else()
 	## fallback to using pkg-config
 	include(FindPkgConfig)
@@ -66,8 +74,6 @@ include(CustomMacros)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_BINARY_DIR}
                     ${LUA_INCLUDE_DIR})
-
-link_directories(${ZMQ_LIBRARY_DIRS})
 
 ## LuaZMQ
 set(LUA_ZMQ_SRC

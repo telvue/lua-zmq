@@ -726,6 +726,7 @@ static FUNC_UNUSED void * obj_simple_udata_luadelete(lua_State *L, int _index, o
 
 static FUNC_UNUSED void *obj_simple_udata_luapush(lua_State *L, void *obj, int size, obj_type *type)
 {
+	void *ud;
 #if LUAJIT_FFI
 	lua_pushlightuserdata(L, type);
 	lua_rawget(L, LUA_REGISTRYINDEX); /* type's metatable. */
@@ -737,7 +738,7 @@ static FUNC_UNUSED void *obj_simple_udata_luapush(lua_State *L, void *obj, int s
 	}
 #endif
 	/* create new userdata. */
-	void *ud = lua_newuserdata(L, size);
+	ud = lua_newuserdata(L, size);
 	memcpy(ud, obj, size);
 	/* get obj_type metatable. */
 #if LUAJIT_FFI
@@ -3269,12 +3270,12 @@ static const int opt_types[] = {
 };
 
 #if VERSION_2_0
-ZMQ_Error lzmq_socket_set_hwm(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_hwm(ZMQ_Socket *sock, int value) {
 	uint64_t val = (uint64_t)value;
 	return zmq_setsockopt(sock, ZMQ_HWM, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 	uint64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_HWM, &val, &val_len);
@@ -3282,12 +3283,12 @@ ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_set_swap(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_swap(ZMQ_Socket *sock, int value) {
 	int64_t val = (int64_t)value;
 	return zmq_setsockopt(sock, ZMQ_SWAP, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_swap(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_swap(ZMQ_Socket *sock, int *value) {
 	int64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_SWAP, &val, &val_len);
@@ -3295,37 +3296,37 @@ ZMQ_Error lzmq_socket_swap(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_set_affinity(ZMQ_Socket *sock, uint64_t value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_affinity(ZMQ_Socket *sock, uint64_t value) {
 	return zmq_setsockopt(sock, ZMQ_AFFINITY, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_affinity(ZMQ_Socket *sock, uint64_t *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_affinity(ZMQ_Socket *sock, uint64_t *value) {
 	size_t val_len = sizeof(uint64_t);
 	return zmq_getsockopt(sock, ZMQ_AFFINITY, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_identity(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_identity(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ZMQ_IDENTITY, value, str_len);
 }
 
-ZMQ_Error lzmq_socket_identity(ZMQ_Socket *sock, char *value, size_t *len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_identity(ZMQ_Socket *sock, char *value, size_t *len) {
 	return zmq_getsockopt(sock, ZMQ_IDENTITY, value, len);
 }
 
-ZMQ_Error lzmq_socket_subscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_subscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ZMQ_SUBSCRIBE, value, str_len);
 }
 
-ZMQ_Error lzmq_socket_unsubscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_unsubscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ZMQ_UNSUBSCRIBE, value, str_len);
 }
 
-ZMQ_Error lzmq_socket_set_rate(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rate(ZMQ_Socket *sock, int value) {
 	int64_t val = (int64_t)value;
 	return zmq_setsockopt(sock, ZMQ_RATE, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_rate(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rate(ZMQ_Socket *sock, int *value) {
 	int64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_RATE, &val, &val_len);
@@ -3333,12 +3334,12 @@ ZMQ_Error lzmq_socket_rate(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_set_recovery_ivl(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_recovery_ivl(ZMQ_Socket *sock, int value) {
 	int64_t val = (int64_t)value;
 	return zmq_setsockopt(sock, ZMQ_RECOVERY_IVL, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_recovery_ivl(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_recovery_ivl(ZMQ_Socket *sock, int *value) {
 	int64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_RECOVERY_IVL, &val, &val_len);
@@ -3346,12 +3347,12 @@ ZMQ_Error lzmq_socket_recovery_ivl(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_set_mcast_loop(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_mcast_loop(ZMQ_Socket *sock, int value) {
 	int64_t val = (int64_t)value;
 	return zmq_setsockopt(sock, ZMQ_MCAST_LOOP, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_mcast_loop(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_mcast_loop(ZMQ_Socket *sock, int *value) {
 	int64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_MCAST_LOOP, &val, &val_len);
@@ -3359,12 +3360,12 @@ ZMQ_Error lzmq_socket_mcast_loop(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_set_sndbuf(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_sndbuf(ZMQ_Socket *sock, int value) {
 	uint64_t val = (uint64_t)value;
 	return zmq_setsockopt(sock, ZMQ_SNDBUF, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_sndbuf(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_sndbuf(ZMQ_Socket *sock, int *value) {
 	uint64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_SNDBUF, &val, &val_len);
@@ -3372,12 +3373,12 @@ ZMQ_Error lzmq_socket_sndbuf(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_set_rcvbuf(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rcvbuf(ZMQ_Socket *sock, int value) {
 	uint64_t val = (uint64_t)value;
 	return zmq_setsockopt(sock, ZMQ_RCVBUF, &val, sizeof(val));
 }
 
-ZMQ_Error lzmq_socket_rcvbuf(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvbuf(ZMQ_Socket *sock, int *value) {
 	uint64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_RCVBUF, &val, &val_len);
@@ -3385,7 +3386,7 @@ ZMQ_Error lzmq_socket_rcvbuf(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_rcvmore(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvmore(ZMQ_Socket *sock, int *value) {
 	int64_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_RCVMORE, &val, &val_len);
@@ -3395,12 +3396,12 @@ ZMQ_Error lzmq_socket_rcvmore(ZMQ_Socket *sock, int *value) {
 
 #endif /* #if VERSION_2_0 */
 #if VERSION_2_1
-ZMQ_Error lzmq_socket_fd(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_fd(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_FD, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_events(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_events(ZMQ_Socket *sock, int *value) {
 	uint32_t val;
 	size_t val_len = sizeof(val);
 	int rc = zmq_getsockopt(sock, ZMQ_EVENTS, &val, &val_len);
@@ -3408,52 +3409,52 @@ ZMQ_Error lzmq_socket_events(ZMQ_Socket *sock, int *value) {
 	return rc;
 }
 
-ZMQ_Error lzmq_socket_type(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_type(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_TYPE, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_linger(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_linger(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_LINGER, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_linger(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_linger(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_LINGER, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_reconnect_ivl(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_reconnect_ivl(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RECONNECT_IVL, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_reconnect_ivl(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_reconnect_ivl(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RECONNECT_IVL, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_backlog(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_backlog(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_BACKLOG, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_backlog(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_backlog(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_BACKLOG, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_recovery_ivl_msec(ZMQ_Socket *sock, int64_t value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_recovery_ivl_msec(ZMQ_Socket *sock, int64_t value) {
 	return zmq_setsockopt(sock, ZMQ_RECOVERY_IVL_MSEC, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_recovery_ivl_msec(ZMQ_Socket *sock, int64_t *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_recovery_ivl_msec(ZMQ_Socket *sock, int64_t *value) {
 	size_t val_len = sizeof(int64_t);
 	return zmq_getsockopt(sock, ZMQ_RECOVERY_IVL_MSEC, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_reconnect_ivl_max(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_reconnect_ivl_max(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RECONNECT_IVL_MAX, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_reconnect_ivl_max(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_reconnect_ivl_max(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RECONNECT_IVL_MAX, value, &val_len);
 }
@@ -3479,189 +3480,189 @@ ZMQ_Error lzmq_socket_hwm(ZMQ_Socket *sock, int *value) {
 	return zmq_getsockopt(sock, ZMQ_RCVHWM, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_affinity(ZMQ_Socket *sock, uint64_t value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_affinity(ZMQ_Socket *sock, uint64_t value) {
 	return zmq_setsockopt(sock, ZMQ_AFFINITY, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_affinity(ZMQ_Socket *sock, uint64_t *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_affinity(ZMQ_Socket *sock, uint64_t *value) {
 	size_t val_len = sizeof(uint64_t);
 	return zmq_getsockopt(sock, ZMQ_AFFINITY, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_identity(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_identity(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ZMQ_IDENTITY, value, str_len);
 }
 
-ZMQ_Error lzmq_socket_identity(ZMQ_Socket *sock, char *value, size_t *len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_identity(ZMQ_Socket *sock, char *value, size_t *len) {
 	return zmq_getsockopt(sock, ZMQ_IDENTITY, value, len);
 }
 
-ZMQ_Error lzmq_socket_subscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_subscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ZMQ_SUBSCRIBE, value, str_len);
 }
 
-ZMQ_Error lzmq_socket_unsubscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_unsubscribe(ZMQ_Socket *sock, const char *value, size_t str_len) {
 	return zmq_setsockopt(sock, ZMQ_UNSUBSCRIBE, value, str_len);
 }
 
-ZMQ_Error lzmq_socket_set_rate(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rate(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RATE, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_rate(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rate(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RATE, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_recovery_ivl(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_recovery_ivl(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RECOVERY_IVL, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_recovery_ivl(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_recovery_ivl(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RECOVERY_IVL, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_sndbuf(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_sndbuf(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_SNDBUF, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_sndbuf(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_sndbuf(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_SNDBUF, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_rcvbuf(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rcvbuf(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RCVBUF, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_rcvbuf(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvbuf(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RCVBUF, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_rcvmore(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvmore(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RCVMORE, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_fd(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_fd(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_FD, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_events(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_events(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_EVENTS, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_type(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_type(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_TYPE, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_linger(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_linger(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_LINGER, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_linger(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_linger(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_LINGER, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_reconnect_ivl(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_reconnect_ivl(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RECONNECT_IVL, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_reconnect_ivl(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_reconnect_ivl(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RECONNECT_IVL, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_backlog(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_backlog(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_BACKLOG, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_backlog(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_backlog(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_BACKLOG, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_reconnect_ivl_max(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_reconnect_ivl_max(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RECONNECT_IVL_MAX, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_reconnect_ivl_max(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_reconnect_ivl_max(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RECONNECT_IVL_MAX, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_maxmsgsize(ZMQ_Socket *sock, int64_t value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_maxmsgsize(ZMQ_Socket *sock, int64_t value) {
 	return zmq_setsockopt(sock, ZMQ_MAXMSGSIZE, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_maxmsgsize(ZMQ_Socket *sock, int64_t *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_maxmsgsize(ZMQ_Socket *sock, int64_t *value) {
 	size_t val_len = sizeof(int64_t);
 	return zmq_getsockopt(sock, ZMQ_MAXMSGSIZE, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_sndhwm(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_sndhwm(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_SNDHWM, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_sndhwm(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_sndhwm(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_SNDHWM, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_rcvhwm(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rcvhwm(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RCVHWM, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_rcvhwm(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvhwm(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RCVHWM, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_multicast_hops(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_multicast_hops(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_MULTICAST_HOPS, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_multicast_hops(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_multicast_hops(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_MULTICAST_HOPS, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_rcvtimeo(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rcvtimeo(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_RCVTIMEO, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_rcvtimeo(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvtimeo(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_RCVTIMEO, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_sndtimeo(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_sndtimeo(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_SNDTIMEO, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_sndtimeo(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_sndtimeo(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_SNDTIMEO, value, &val_len);
 }
 
-ZMQ_Error lzmq_socket_set_ipv4only(ZMQ_Socket *sock, int value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_ipv4only(ZMQ_Socket *sock, int value) {
 	return zmq_setsockopt(sock, ZMQ_IPV4ONLY, &value, sizeof(value));
 }
 
-ZMQ_Error lzmq_socket_ipv4only(ZMQ_Socket *sock, int *value) {
+LUA_NOBJ_API ZMQ_Error lzmq_socket_ipv4only(ZMQ_Socket *sock, int *value) {
 	size_t val_len = sizeof(int);
 	return zmq_getsockopt(sock, ZMQ_IPV4ONLY, value, &val_len);
 }
 
 #endif /* #if VERSION_3_0 */
 
-ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
+LUA_NOBJ_API ZMQ_Error simple_zmq_send(ZMQ_Socket *sock, const char *data, size_t data_len, int flags) {
 	ZMQ_Error err;
 	zmq_msg_t msg;
 	/* initialize message */
@@ -3994,7 +3995,7 @@ static void error_code__ZMQ_Error__push(lua_State *L, ZMQ_Error err) {
 /* method: init */
 static int zmq_msg_t__init__meth(lua_State *L) {
   zmq_msg_t this1_store;
-  zmq_msg_t * this1 = &(this1_store);;
+  zmq_msg_t * this1 = &(this1_store);
   ZMQ_Error rc_zmq_msg_init2 = 0;
   rc_zmq_msg_init2 = zmq_msg_init(this1);
   if(!(-1 == rc_zmq_msg_init2)) {
@@ -4010,7 +4011,7 @@ static int zmq_msg_t__init__meth(lua_State *L) {
 static int zmq_msg_t__init_size__meth(lua_State *L) {
   size_t size1 = luaL_checkinteger(L,1);
   zmq_msg_t this1_store;
-  zmq_msg_t * this1 = &(this1_store);;
+  zmq_msg_t * this1 = &(this1_store);
   ZMQ_Error rc_zmq_msg_init_size2 = 0;
   rc_zmq_msg_init_size2 = zmq_msg_init_size(this1, size1);
   if(!(-1 == rc_zmq_msg_init_size2)) {
@@ -4027,7 +4028,7 @@ static int zmq_msg_t__init_data__meth(lua_State *L) {
   size_t data_len1;
   const char * data1 = luaL_checklstring(L,1,&(data_len1));
   zmq_msg_t this1_store;
-  zmq_msg_t * this1 = &(this1_store);;
+  zmq_msg_t * this1 = &(this1_store);
   ZMQ_Error err2 = 0;
   err2 = zmq_msg_init_size(this1, data_len1);
 	if(0 == err2) {
@@ -5375,7 +5376,7 @@ static int ZMQ_Socket__set_ipv4only__meth(lua_State *L) {
 static int ZMQ_Poller__new__meth(lua_State *L) {
   unsigned int length1 = luaL_optinteger(L,1,10);
   ZMQ_Poller this1_store;
-  ZMQ_Poller * this1 = &(this1_store);;
+  ZMQ_Poller * this1 = &(this1_store);
   poller_init(this1, length1);
   obj_type_ZMQ_Poller_push(L, this1);
   return 1;
@@ -6620,7 +6621,7 @@ static const reg_sub_module reg_sub_modules[] = {
 
 #if LUAJIT_FFI
 static const ffi_export_symbol zmq_ffi_export[] = {
-  {NULL, { .data = NULL } }
+  {NULL, { NULL } }
 };
 #endif
 
