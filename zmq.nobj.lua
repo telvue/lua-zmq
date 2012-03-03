@@ -220,16 +220,5 @@ c_function "stopwatch_start" {
 c_function "sleep" {
 	c_call "void" "zmq_sleep" { "int", "seconds_" },
 },
---
--- This dump function is for getting a copy of the FFI-based bindings code and is
--- only for debugging.
---
-c_function "dump_ffi" {
-	var_out{ "const char *", "ffi_code", has_length = true, },
-	c_source[[
-	${ffi_code} = ${module_c_name}_ffi_lua_code;
-	${ffi_code_len} = sizeof(${module_c_name}_ffi_lua_code) - 1;
-]],
-},
 }
 
