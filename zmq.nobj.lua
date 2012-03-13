@@ -56,15 +56,17 @@ c_source "typedefs" [[
 #  endif
 #endif
 
+/* make sure ZMQ_DONTWAIT & ZMQ_NOBLOCK are both defined. */
 #ifndef ZMQ_DONTWAIT
 #  define ZMQ_DONTWAIT     ZMQ_NOBLOCK
 #endif
-#if VERSION_2_0
-#  define ZMQ_POLL_MSEC    1000 // zmq_poll is usec
-#elif VERSION_3_0
 #ifndef ZMQ_NOBLOCK
 #  define ZMQ_NOBLOCK      ZMQ_DONTWAIT
 #endif
+
+#if VERSION_2_0
+#  define ZMQ_POLL_MSEC    1000 // zmq_poll is usec
+#elif VERSION_3_0
 #  define ZMQ_POLL_MSEC    1    // zmq_poll is msec
 #  ifndef ZMQ_HWM
 #    define ZMQ_HWM        1    // backwards compatibility
