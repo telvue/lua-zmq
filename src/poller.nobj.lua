@@ -272,10 +272,10 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 
 	constructor "new" {
 		var_in{ "unsigned int", "length", is_optional = true, default = 10 },
-		c_method_call "void" "poller_init" { "unsigned int", "length" },
+		c_export_method_call "void" "poller_init" { "unsigned int", "length" },
 	},
 	destructor "close" {
-		c_method_call "void" "poller_cleanup" {},
+		c_export_method_call "void" "poller_cleanup" {},
 	},
 	method "add" {
 		var_in{ "<any>", "sock" },
@@ -310,7 +310,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 	else
 		error("expected number or ZMQ_Socket")
 	end
-	${idx} = C.poller_get_free_item(${this})
+	${idx} = Cmod.poller_get_free_item(${this})
 	local item = ${this}.items[${idx}]
 	item.socket = sock
 	item.fd = fd
@@ -358,11 +358,11 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 	if sock_type == 'cdata' then
 		sock = obj_type_ZMQ_Socket_check(${sock})
 		-- find sock in items list.
-		${idx} = C.poller_find_sock_item(${this}, sock)
+		${idx} = Cmod.poller_find_sock_item(${this}, sock)
 	elseif sock_type == 'number' then
 		fd = ${sock}
 		-- find fd in items list.
-		${idx} = C.poller_find_fd_item(${this}, fd);
+		${idx} = Cmod.poller_find_fd_item(${this}, fd);
 	else
 		error("expected number or ZMQ_Socket")
 	end
@@ -372,7 +372,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 		item.fd = fd
 		item.events = ${events}
 	else
-		C.poller_remove_item(${this}, ${idx})
+		Cmod.poller_remove_item(${this}, ${idx})
 	end
 ]],
 	},
@@ -407,26 +407,24 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 	if sock_type == 'cdata' then
 		sock = obj_type_ZMQ_Socket_check(${sock})
 		-- find sock in items list.
-		${idx} = C.poller_find_sock_item(${this}, sock)
+		${idx} = Cmod.poller_find_sock_item(${this}, sock)
 	elseif sock_type == 'number' then
 		fd = ${sock}
 		-- find fd in items list.
-		${idx} = C.poller_find_fd_item(${this}, fd);
+		${idx} = Cmod.poller_find_fd_item(${this}, fd);
 	else
 		error("expected number or ZMQ_Socket")
 	end
 	if ${idx} >= 0 then
-		C.poller_remove_item(${this}, ${idx})
+		Cmod.poller_remove_item(${this}, ${idx})
 	end
 ]],
 	},
 	method "poll" {
-		var_in{ "long", "timeout" },
 		var_out{ "int", "count" },
-		var_out{ "ZMQ_Error", "err" },
+		-- poll for events
+		c_export_method_call { "ZMQ_Error", "err>2" } "poller_poll" { "long", "timeout" },
 		c_source[[
-	/* poll for events */
-	${err} = poller_poll(${this}, ${timeout});
 	if(${err} > 0) {
 		${this}->next = 0;
 		${count} = ${err};
@@ -436,8 +434,6 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 	}
 ]],
 		ffi_source[[
-	-- poll for events
-	${err} = C.poller_poll(${this}, ${timeout})
 	if(${err} > 0) then
 		${this}.next = 0
 		${count} = ${err}
@@ -448,7 +444,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 ]],
 	},
 	method "next_revents_idx" {
-		c_method_call { "int", "idx>1" } "poller_next_revents" { "int", "&revents>2" },
+		c_export_method_call { "int", "idx>1" } "poller_next_revents" { "int", "&revents>2" },
 	},
 	method "count" {
 		var_out{ "int", "count" },
