@@ -64,6 +64,20 @@ c_source "typedefs" [[
 #  define ZMQ_NOBLOCK      ZMQ_DONTWAIT
 #endif
 
+/* make sure DEALER/ROUTER & XREQ/XREP are all defined. */
+#ifndef ZMQ_DEALER
+#  define ZMQ_DEALER ZMQ_XREQ
+#endif
+#ifndef ZMQ_ROUTER
+#  define ZMQ_ROUTER ZMQ_XREP
+#endif
+#ifndef ZMQ_XREQ
+#  define ZMQ_XREQ ZMQ_DEALER
+#endif
+#ifndef ZMQ_XREP
+#  define ZMQ_XREP ZMQ_ROUTER
+#endif
+
 #if VERSION_2_0
 #  define ZMQ_POLL_MSEC    1000 // zmq_poll is usec
 #elif VERSION_3_0
@@ -71,12 +85,6 @@ c_source "typedefs" [[
 #  ifndef ZMQ_HWM
 #    define ZMQ_HWM        1    // backwards compatibility
 #  endif
-#endif
-#ifndef ZMQ_DEALER
-#  define ZMQ_DEALER ZMQ_XREQ
-#endif
-#ifndef ZMQ_ROUTER
-#  define ZMQ_ROUTER ZMQ_XREP
 #endif
 ]],
 
@@ -100,14 +108,17 @@ PUB               = "ZMQ_PUB",
 SUB               = "ZMQ_SUB",
 REQ               = "ZMQ_REQ",
 REP               = "ZMQ_REP",
-DEALER            = "ZMQ_DEALER",
-ROUTER            = "ZMQ_ROUTER",
 PULL              = "ZMQ_PULL",
 PUSH              = "ZMQ_PUSH",
 
--- deprecated
-XREQ              = "ZMQ_DEALER",
-XREP              = "ZMQ_ROUTER",
+DEALER            = "ZMQ_DEALER",
+ROUTER            = "ZMQ_ROUTER",
+XREQ              = "ZMQ_XREQ",
+XREP              = "ZMQ_XREP",
+
+-- new 3.1 socket types
+XPUB              = "ZMQ_XPUB",
+XSUB              = "ZMQ_XSUB",
 
 -- socket options
 HWM               = "ZMQ_HWM",
