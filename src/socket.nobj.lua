@@ -472,7 +472,7 @@ do
 	setmetatable(option_sets,{__index = function(tab,opt)
 		local opt_name = opt_name[opt]
 		if not opt_name then return nil end
-		local method = methods[opt_name] or methods['set_' .. opt_name]
+		local method = methods['set_' .. opt_name] or methods[opt_name]
 		rawset(tab, opt, method)
 		return method
 	end})
