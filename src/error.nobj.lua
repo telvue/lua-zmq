@@ -283,12 +283,15 @@ error_code "ZMQ_Error" "int" {
 	ffi_is_error_check = function(rec) return "(-1 == ${" .. rec.name .. "})" end,
 	default = "0",
 	c_source [[
+	int num;
 	if(-1 == err) {
 		/* get ZErrors table. */
 		lua_pushlightuserdata(L, zmq_ZErrors_key);
 		lua_rawget(L, LUA_REGISTRYINDEX);
 		/* convert zmq_errno to string. */
-		lua_rawgeti(L, -1, zmq_errno());
+		num = zmq_errno();
+		lua_pushinteger(L, num);
+		lua_gettable(L, -2);
 		/* remove ZErrors table. */
 		lua_remove(L, -2);
 		if(!lua_isnil(L, -1)) {
@@ -297,7 +300,8 @@ error_code "ZMQ_Error" "int" {
 		}
 		/* Unknown error. */
 		lua_pop(L, 1);
-		err_str = "UNKNOWN ERROR";
+		lua_pushfstring(L, "UNKNOWN ERROR(%d)", num);
+		return;
 	}
 ]],
 	ffi_source [[
