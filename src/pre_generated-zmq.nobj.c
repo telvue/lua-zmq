@@ -3115,7 +3115,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "\n"
 "-- method: init\n"
 "function _M.init(io_threads1)\n"
-"  \n"
+"    io_threads1 = io_threads1 or 1\n"
 "  local rc_zmq_init_flags1 = OBJ_UDATA_FLAG_OWN\n"
 "  local rc_zmq_init1\n"
 "  rc_zmq_init1 = C.zmq_init(io_threads1)\n"
@@ -5643,7 +5643,7 @@ static int zmq__version__func(lua_State *L) {
 
 /* method: init */
 static int zmq__init__func(lua_State *L) {
-  int io_threads1 = luaL_checkinteger(L,1);
+  int io_threads1 = luaL_optinteger(L,1,1);
   int rc_zmq_init_flags1 = OBJ_UDATA_FLAG_OWN;
   ZMQ_Ctx * rc_zmq_init1;
   rc_zmq_init1 = zmq_init(io_threads1);

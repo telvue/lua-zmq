@@ -199,6 +199,7 @@ c_function "version" {
 ]],
 },
 c_function "init" {
+	var_in{ "int", "io_threads?", default = "1" },
 	c_call "!ZMQ_Ctx *" "zmq_init" { "int", "io_threads" },
 },
 c_function "init_ctx" {
