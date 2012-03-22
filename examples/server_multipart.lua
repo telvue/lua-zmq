@@ -18,18 +18,18 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
-require("zmq")
+local zmq = require"zmq"
 
-local ctx = zmq.init(1)
+local ctx = zmq.init()
 local s = ctx:socket(zmq.REP)
 
 s:bind("tcp://lo:5555")
 
 while true do
-    local query = s:recv()
-    while s:getopt(zmq.RCVMORE) == 1 do
-        query = query .. s:recv()
-    end
-    print(string.format("Received query: '%s'", query))
-    s:send("OK")
+	local query = s:recv()
+	while s:getopt(zmq.RCVMORE) == 1 do
+		query = query .. s:recv()
+	end
+	print(string.format("Received query: '%s'", query))
+	s:send("OK")
 end

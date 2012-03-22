@@ -18,15 +18,15 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
-require("zmq")
+local zmq = require"zmq"
 
-local ctx = zmq.init(1)
+local ctx = zmq.init()
 local s = ctx:socket(zmq.PUB)
 
 s:bind("tcp://lo:5555")
 
 local msg_id = 1
 while true do
-    s:send(tostring(msg_id))
-    msg_id = msg_id + 1
+	s:send(tostring(msg_id))
+	msg_id = msg_id + 1
 end
