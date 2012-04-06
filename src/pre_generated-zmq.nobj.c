@@ -1914,9 +1914,9 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "-- method: size\n"
 "function _meth.zmq_msg_t.size(self)\n"
 "  \n"
-"  local rc_zmq_msg_size1 = 0\n"
-"  rc_zmq_msg_size1 = C.zmq_msg_size(self)\n"
-"  return rc_zmq_msg_size1\n"
+"  local size1 = 0\n"
+"  size1 = C.zmq_msg_size(self)\n"
+"  return tonumber(size1)\n"
 "end\n"
 "\n"
 "-- method: __tostring\n"
@@ -2221,8 +2221,8 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "end\n"
 "end\n"
 "\n"
-"-- method: set_affinity\n", /* ----- CUT ----- */
-"if (_meth.ZMQ_Socket.set_affinity) then\n"
+"-- method: set_affinity\n"
+"if (_meth.ZMQ_Socket.set_affinity) then\n", /* ----- CUT ----- */
 "function _meth.ZMQ_Socket.set_affinity(self, value2)\n"
 "  \n"
 "  \n"
@@ -2741,10 +2741,10 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "  local rc_lzmq_socket_set_sndhwm1 = 0\n"
 "  rc_lzmq_socket_set_sndhwm1 = Cmod.lzmq_socket_set_sndhwm(self, value2)\n"
 "  -- check for error.\n"
-"  if (-1 == rc_lzmq_socket_set_sndhwm1) then\n", /* ----- CUT ----- */
+"  if (-1 == rc_lzmq_socket_set_sndhwm1) then\n"
 "    return nil, error_code__ZMQ_Error__push(rc_lzmq_socket_set_sndhwm1)\n"
 "  end\n"
-"  return true\n"
+"  return true\n", /* ----- CUT ----- */
 "end\n"
 "end\n"
 "\n"
@@ -4216,9 +4216,9 @@ static int zmq_msg_t__set_size__meth(lua_State *L) {
 /* method: size */
 static int zmq_msg_t__size__meth(lua_State *L) {
   zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
-  size_t rc_zmq_msg_size1 = 0;
-  rc_zmq_msg_size1 = zmq_msg_size(this1);
-  lua_pushinteger(L, rc_zmq_msg_size1);
+  size_t size1 = 0;
+  size1 = zmq_msg_size(this1);
+  lua_pushinteger(L, size1);
   return 1;
 }
 

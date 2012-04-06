@@ -147,6 +147,14 @@ See [zmq_msg_copy(3)](http://api.zeromq.org/zmq_msg_copy.html).
 
 	msg1:copy(msg2) -- copy contents from msg2 -> msg1
 
+## set_size(size)
+
+Re-initialize the message with a new size.  The current contents will be lost.
+See [zmq_msg_init_size(3)](http://api.zeromq.org/zmq_msg_init_size.html).
+
+	msg:set_size(size) -- re-initialize message if size is different from current size.
+	local buf = msg:data() -- get buffer to fill message with new contents.
+
 ## set_data(data)
 
 Change the message contents.
@@ -156,7 +164,7 @@ See [zmq_msg_data(3)](http://api.zeromq.org/zmq_msg_data.html).
 
 ## data()
 
-Get the message contents.
+Get a lightuserdata pointer to the message contents.
 See [zmq_msg_data(3)](http://api.zeromq.org/zmq_msg_data.html).
 
 	local data = msg:data() -- get the message contents

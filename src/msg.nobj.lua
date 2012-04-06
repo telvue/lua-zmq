@@ -132,7 +132,7 @@ int zmq_msg_init_size (zmq_msg_t *msg, size_t size);
 ]],
 	},
 	method "size" {
-		c_method_call "size_t" "zmq_msg_size" {}
+		c_method_call { "size_t", "size", ffi_wrap = "tonumber"} "zmq_msg_size" {}
 	},
 	method "__tostring" {
 		var_out{ "const char *", "data", has_length = true },
