@@ -102,12 +102,20 @@ end
 
 function meths:recv(flags)
 	zsock_check_events(self)
-	return self.sock:recv(flags)
+	local msg, err = self.sock:recv(flags)
+	if not msg and err == 'timeout' then
+		self.recv_blocked = true
+	end
+	return msg, err
 end
 
 function meths:recv_msg(msg, flags)
 	zsock_check_events(self)
-	return self.sock:recv_msg(msg, flags)
+	local stat, err = self.sock:recv_msg(msg, flags)
+	if not stat and err == 'timeout' then
+		self.recv_blocked = true
+	end
+	return stat, err
 end
 
 local function nil_cb()
@@ -118,6 +126,7 @@ local function wrap_zsock(sock, on_data, on_drain)
 		sock = sock,
 		on_data = on_data or nil_cb,
 		on_drain = on_drain or nil_cb,
+		recv_blocked = false,
 		send_blocked = false,
 		check_enabled = false,
 	}, zsock_mt)
@@ -138,7 +147,12 @@ local function wrap_zsock(sock, on_data, on_drain)
 			return
 		end
 		if read then
+			self.recv_blocked = false
 			self:on_data(sock)
+			-- there might be more messages to read.
+			if not self.recv_blocked then
+				zsock_check_events(self)
+			end
 		end
 		if write and self.send_blocked then
 			self:on_drain(sock)
@@ -150,6 +164,7 @@ local function wrap_zsock(sock, on_data, on_drain)
 		zsock_check_events(self)
 	end)
 
+	zsock_check_events(self)
 	return self
 end
 
