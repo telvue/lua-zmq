@@ -37,6 +37,7 @@ local zsock_mt = { __index=meths }
 
 local function zsock_check_events(self)
 	if not self.check_enabled then
+		-- enable 'on_work' callback to handle checking for socket events.
 		self.check_enabled = true
 		poll:add_work(self.on_work)
 	end
@@ -131,7 +132,7 @@ local function wrap_zsock(sock, on_data, on_drain)
 		check_enabled = false,
 	}, zsock_mt)
 
-	function self.on_work()
+	local function on_work()
 		self.check_enabled = false
 		local events = sock:events()
 		local read = false
@@ -158,10 +159,11 @@ local function wrap_zsock(sock, on_data, on_drain)
 			self:on_drain(sock)
 		end
 	end
+	self.on_work = on_work
 
 	-- listen for read events to enable socket.
 	poll:add_read(sock:fd(), function()
-		zsock_check_events(self)
+		on_work()
 	end)
 
 	zsock_check_events(self)
