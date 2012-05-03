@@ -59,6 +59,8 @@ local function poller_new()
 		self.idle_enabled = false
 		self.idle:stop(loop)
 	end)
+	-- set priority to max, to make sure the work queue is processed on each loop.
+	self.idle:priority(ev.MAXPRI)
 
 	return setmetatable(self, poller_mt)
 end
