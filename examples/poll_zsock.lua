@@ -22,10 +22,6 @@ local zmq = require"zmq"
 
 local z_EVENTS = zmq.EVENTS
 
-local z_SNDMORE = zmq.SNDMORE
-local z_RCVMORE = zmq.RCVMORE
-local z_NOBLOCK = zmq.NOBLOCK
-
 local z_POLLIN = zmq.POLLIN
 local z_POLLOUT = zmq.POLLOUT
 local z_POLLIN_OUT = z_POLLIN + z_POLLOUT
