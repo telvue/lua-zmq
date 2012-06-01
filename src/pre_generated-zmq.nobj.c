@@ -223,8 +223,15 @@ typedef struct ffi_export_symbol {
 /* detect zmq version */
 #define VERSION_2_0 1
 #define VERSION_2_1 0
+#define VERSION_2_2 0
 #define VERSION_3_0 0
 #if defined(ZMQ_VERSION_MAJOR)
+#  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 2)
+#    undef VERSION_2_2
+#    define VERSION_2_2 1
+#    undef VERSION_2_1
+#    define VERSION_2_1 1
+#  endif
 #  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 1)
 #    undef VERSION_2_1
 #    define VERSION_2_1 1
@@ -552,6 +559,9 @@ static FUNC_UNUSED void *obj_udata_luadelete(lua_State *L, int _index, obj_type 
 	/* null userdata. */
 	ud->obj = NULL;
 	ud->flags = 0;
+	/* clear the metatable in invalidate userdata. */
+	lua_pushnil(L);
+	lua_setmetatable(L, _index);
 	return obj;
 }
 
@@ -599,6 +609,9 @@ static FUNC_UNUSED void *obj_udata_luadelete_weak(lua_State *L, int _index, obj_
 	/* null userdata. */
 	ud->obj = NULL;
 	ud->flags = 0;
+	/* clear the metatable in invalidate userdata. */
+	lua_pushnil(L);
+	lua_setmetatable(L, _index);
 	/* get objects weak table. */
 	lua_pushlightuserdata(L, obj_udata_weak_ref_key);
 	lua_rawget(L, LUA_REGISTRYINDEX); /* weak ref table. */
@@ -1079,6 +1092,8 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	return nil\n"
 "end\n"
 "\n"
+"local f_cast = ffi.cast\n"
+"local pcall = pcall\n"
 "local error = error\n"
 "local type = type\n"
 "local tonumber = tonumber\n"
@@ -1176,11 +1191,11 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "local nobj_obj_flags = {}\n"
 "\n"
 "local function obj_ptr_to_id(ptr)\n"
-"	return tonumber(ffi.cast('uintptr_t', ptr))\n"
+"	return tonumber(f_cast('uintptr_t', ptr))\n"
 "end\n"
 "\n"
 "local function obj_to_id(ptr)\n"
-"	return tonumber(ffi.cast('uintptr_t', ffi.cast('void *', ptr)))\n"
+"	return tonumber(f_cast('uintptr_t', f_cast('void *', ptr)))\n"
 "end\n"
 "\n"
 "local function register_default_constructor(_pub, obj_name, constructor)\n"
@@ -1210,11 +1225,15 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "-- detect zmq version\n"
 "local VERSION_2_0 = true\n"
 "local VERSION_2_1 = false\n"
+"local VERSION_2_2 = false\n"
 "local VERSION_3_0 = false\n"
 "local zver = _M.version()\n"
 "if zver[1] == 3 then\n"
 "	VERSION_2_0 = false\n"
 "	VERSION_3_0 = true\n"
+"elseif zver[1] == 2 and zver[2] == 2 then\n"
+"	VERSION_2_2 = true\n"
+"	VERSION_2_1 = true\n"
 "elseif zver[1] == 2 and zver[2] == 1 then\n"
 "	VERSION_2_1 = true\n"
 "end\n"
@@ -1625,9 +1644,9 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	_ctypes.ZMQ_Ctx = obj_ctype\n"
 "	_type_names.ZMQ_Ctx = tostring(obj_ctype)\n"
 "\n"
-"	function obj_type_ZMQ_Ctx_check(ptr)\n"
+"	function obj_type_ZMQ_Ctx_check(ptr)\n", /* ----- CUT ----- */
 "		-- if ptr is nil or is the correct type, then just return it.\n"
-"		if not ptr or ffi.istype(obj_ctype, ptr) then return ptr end\n", /* ----- CUT ----- */
+"		if not ptr or ffi.istype(obj_ctype, ptr) then return ptr end\n"
 "		-- check if it is a compatible type.\n"
 "		local ctype = tostring(ffi.typeof(ptr))\n"
 "		local bcaster = _obj_subs.ZMQ_Ctx[ctype]\n"
@@ -2017,12 +2036,12 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "		[19] = 'backlog',\n"
 "		[20] = 'recovery_ivl_msec',\n"
 "		[21] = 'reconnect_ivl_max',\n"
+"		[27] = 'rcvtimeo',\n"
+"		[28] = 'sndtimeo',\n"
 "		[22] = 'maxmsgsize',\n"
 "		[23] = 'sndhwm',\n"
 "		[24] = 'rcvhwm',\n"
 "		[25] = 'multicast_hops',\n"
-"		[27] = 'rcvtimeo',\n"
-"		[28] = 'sndtimeo',\n"
 "		[31] = 'ipv4only',\n"
 "}\n"
 "end\n"
@@ -2217,12 +2236,12 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "    return nil,error_code__ZMQ_Error__push(rc_lzmq_socket_affinity2)\n"
 "  end\n"
 "  return value1[0]\n"
-"end\n"
+"end\n", /* ----- CUT ----- */
 "end\n"
 "end\n"
 "\n"
 "-- method: set_affinity\n"
-"if (_meth.ZMQ_Socket.set_affinity) then\n", /* ----- CUT ----- */
+"if (_meth.ZMQ_Socket.set_affinity) then\n"
 "function _meth.ZMQ_Socket.set_affinity(self, value2)\n"
 "  \n"
 "  \n"
@@ -2740,11 +2759,11 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "  \n"
 "  local rc_lzmq_socket_set_sndhwm1 = 0\n"
 "  rc_lzmq_socket_set_sndhwm1 = Cmod.lzmq_socket_set_sndhwm(self, value2)\n"
-"  -- check for error.\n"
+"  -- check for error.\n", /* ----- CUT ----- */
 "  if (-1 == rc_lzmq_socket_set_sndhwm1) then\n"
 "    return nil, error_code__ZMQ_Error__push(rc_lzmq_socket_set_sndhwm1)\n"
 "  end\n"
-"  return true\n", /* ----- CUT ----- */
+"  return true\n"
 "end\n"
 "end\n"
 "\n"
@@ -3258,6 +3277,16 @@ static const int opt_types[] = {
   OPT_TYPE_INT64,  /* 20 ZMQ_RECOVERY_IVL_MSEC */
   OPT_TYPE_INT,  /* 21 ZMQ_RECONNECT_IVL_MAX */
 #endif /* #if VERSION_2_1 */
+#if VERSION_2_2
+#define VERSION_2_2_MAX_OPT 28
+  OPT_TYPE_NONE,  /* 22 unused */
+  OPT_TYPE_NONE,  /* 23 unused */
+  OPT_TYPE_NONE,  /* 24 unused */
+  OPT_TYPE_NONE,  /* 25 unused */
+  OPT_TYPE_NONE,  /* 26 unused */
+  OPT_TYPE_INT,  /* 27 ZMQ_RCVTIMEO */
+  OPT_TYPE_INT,  /* 28 ZMQ_SNDTIMEO */
+#endif /* #if VERSION_2_2 */
 #if VERSION_3_0
 #define VERSION_3_0_MAX_OPT 31
   OPT_TYPE_INT,  /* 1 ZMQ_HWM */
@@ -3295,7 +3324,9 @@ static const int opt_types[] = {
 #if VERSION_3_0
 #  define MAX_OPTS VERSION_3_0_MAX_OPT
 #else
-#  if VERSION_2_1
+#  if VERSION_2_2
+#    define MAX_OPTS VERSION_2_2_MAX_OPT
+#  elif VERSION_2_1
 #    define MAX_OPTS VERSION_2_1_MAX_OPT
 #  else
 #    define MAX_OPTS VERSION_2_0_MAX_OPT
@@ -3494,6 +3525,26 @@ LUA_NOBJ_API ZMQ_Error lzmq_socket_reconnect_ivl_max(ZMQ_Socket *sock, int *valu
 }
 
 #endif /* #if VERSION_2_1 */
+#if VERSION_2_2
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_rcvtimeo(ZMQ_Socket *sock, int value) {
+	return zmq_setsockopt(sock, ZMQ_RCVTIMEO, &value, sizeof(value));
+}
+
+LUA_NOBJ_API ZMQ_Error lzmq_socket_rcvtimeo(ZMQ_Socket *sock, int *value) {
+	size_t val_len = sizeof(int);
+	return zmq_getsockopt(sock, ZMQ_RCVTIMEO, value, &val_len);
+}
+
+LUA_NOBJ_API ZMQ_Error lzmq_socket_set_sndtimeo(ZMQ_Socket *sock, int value) {
+	return zmq_setsockopt(sock, ZMQ_SNDTIMEO, &value, sizeof(value));
+}
+
+LUA_NOBJ_API ZMQ_Error lzmq_socket_sndtimeo(ZMQ_Socket *sock, int *value) {
+	size_t val_len = sizeof(int);
+	return zmq_getsockopt(sock, ZMQ_SNDTIMEO, value, &val_len);
+}
+
+#endif /* #if VERSION_2_2 */
 #if VERSION_3_0
 ZMQ_Error lzmq_socket_set_hwm(ZMQ_Socket *sock, int value) {
 	int val;
@@ -5303,7 +5354,7 @@ static int ZMQ_Socket__set_multicast_hops__meth(lua_State *L) {
 #endif
 
 /* method: rcvtimeo */
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__rcvtimeo__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value1 = 0;
@@ -5320,7 +5371,7 @@ static int ZMQ_Socket__rcvtimeo__meth(lua_State *L) {
 #endif
 
 /* method: set_rcvtimeo */
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__set_rcvtimeo__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value2 = luaL_checkinteger(L,2);
@@ -5339,7 +5390,7 @@ static int ZMQ_Socket__set_rcvtimeo__meth(lua_State *L) {
 #endif
 
 /* method: sndtimeo */
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__sndtimeo__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value1 = 0;
@@ -5356,7 +5407,7 @@ static int ZMQ_Socket__sndtimeo__meth(lua_State *L) {
 #endif
 
 /* method: set_sndtimeo */
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__set_sndtimeo__meth(lua_State *L) {
   ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
   int value2 = luaL_checkinteger(L,2);
@@ -6319,16 +6370,16 @@ static const luaL_reg obj_ZMQ_Socket_methods[] = {
 #if (VERSION_3_0)
   {"set_multicast_hops", ZMQ_Socket__set_multicast_hops__meth},
 #endif
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
   {"rcvtimeo", ZMQ_Socket__rcvtimeo__meth},
 #endif
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
   {"set_rcvtimeo", ZMQ_Socket__set_rcvtimeo__meth},
 #endif
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
   {"sndtimeo", ZMQ_Socket__sndtimeo__meth},
 #endif
-#if (VERSION_3_0)
+#if (VERSION_2_2|VERSION_3_0)
   {"set_sndtimeo", ZMQ_Socket__set_sndtimeo__meth},
 #endif
 #if (VERSION_3_0)

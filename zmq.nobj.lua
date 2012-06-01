@@ -42,8 +42,15 @@ c_source "typedefs" [[
 /* detect zmq version */
 #define VERSION_2_0 1
 #define VERSION_2_1 0
+#define VERSION_2_2 0
 #define VERSION_3_0 0
 #if defined(ZMQ_VERSION_MAJOR)
+#  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 2)
+#    undef VERSION_2_2
+#    define VERSION_2_2 1
+#    undef VERSION_2_1
+#    define VERSION_2_1 1
+#  endif
 #  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 1)
 #    undef VERSION_2_1
 #    define VERSION_2_1 1

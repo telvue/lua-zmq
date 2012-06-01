@@ -65,6 +65,15 @@ local socket_options = {
 		[20] = { name="recovery_ivl_msec", otype="INT64",  mode="rw", ltype="int64_t" },
 		[21] = { name="reconnect_ivl_max", otype="INT",    mode="rw", ltype="int" },
 	},
+	{ ver_def = 'VERSION_2_2', major = 2, minor = 2,
+		[22] = { },
+		[23] = { },
+		[24] = { },
+		[25] = { },
+		[26] = { },
+		[27] = { name="rcvtimeo",          otype="INT",    mode="rw", ltype="int" },
+		[28] = { name="sndtimeo",          otype="INT",    mode="rw", ltype="int" },
+	},
 	{ ver_def = 'VERSION_3_0', major = 3, minor = 0,
 		[1] =  { name="hwm",               otype="INT",    mode="rw",
 custom = [[
@@ -304,7 +313,9 @@ add(opt_types, [[
 #if VERSION_3_0
 #  define MAX_OPTS VERSION_3_0_MAX_OPT
 #else
-#  if VERSION_2_1
+#  if VERSION_2_2
+#    define MAX_OPTS VERSION_2_2_MAX_OPT
+#  elif VERSION_2_1
 #    define MAX_OPTS VERSION_2_1_MAX_OPT
 #  else
 #    define MAX_OPTS VERSION_2_0_MAX_OPT
@@ -388,11 +399,15 @@ object "ZMQ_Socket" {
 -- detect zmq version
 local VERSION_2_0 = true
 local VERSION_2_1 = false
+local VERSION_2_2 = false
 local VERSION_3_0 = false
 local zver = _M.version()
 if zver[1] == 3 then
 	VERSION_2_0 = false
 	VERSION_3_0 = true
+elseif zver[1] == 2 and zver[2] == 2 then
+	VERSION_2_2 = true
+	VERSION_2_1 = true
 elseif zver[1] == 2 and zver[2] == 1 then
 	VERSION_2_1 = true
 end
