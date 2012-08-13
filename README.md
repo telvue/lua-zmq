@@ -3,6 +3,11 @@ About
 
 Lua bindings to zeromq2.  Check out the [ZeroMQ Guide with Lua examples](http://zguide.zeromq.org/lua:all).
 
+Windows
+=======
+
+Download a compiled version of [LuaJIT 2.0.0-beta10 + lua-zmq + zeromq2.2.0](https://github.com/downloads/Neopallium/lua-zmq/luajit2_zmq2.2_llthreads.zip) 32bit & 64bit.
+
 API
 ===
 
