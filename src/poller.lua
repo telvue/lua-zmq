@@ -92,5 +92,6 @@ function M.new(pre_alloc)
 	}, poller_mt)
 end
 
+zmq.poller = M
 return setmetatable(M, {__call = function(tab, ...) return M.new(...) end})
 

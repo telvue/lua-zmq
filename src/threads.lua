@@ -108,4 +108,5 @@ function M.get_parent_ctx(ctx)
 	return parent_ctx
 end
 
+zmq.threads = M
 return M
