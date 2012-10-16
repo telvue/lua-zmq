@@ -13,10 +13,6 @@ set(INSTALL_LMOD ${CMAKE_INSTALL_PREFIX}/share/lua/5.1 CACHE PATH
 				"Directory to install Lua source modules (configure lua via LUA_PATH)")
 set(INSTALL_CMOD ${CMAKE_INSTALL_PREFIX}/lib/lua/5.1 CACHE PATH
 				"Directory to install Lua binary modules (configure lua via LUA_CPATH)")
-set(LUA_NATIVE_OBJECTS_PATH ../LuaNativeObjects CACHE PATH
-				"Directory to LuaNativeObjects bindings generator.")
-set(USE_PRE_GENERATED_BINDINGS TRUE CACHE BOOL
-				"Set this to FALSE to re-generate bindings using LuaNativeObjects")
 set(ZMQ_PATH "" CACHE PATH
 				"Directory to libzmq. (by default use pkg-config to detect path)")
 
