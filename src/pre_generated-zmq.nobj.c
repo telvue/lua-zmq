@@ -10,6 +10,54 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+/* some Lua 5.0 compatibility support. */
+#if !defined(lua_pushliteral)
+#define lua_pushliteral(L, s) lua_pushstring(L, "" s, (sizeof(s)/sizeof(char))-1)
+#endif
+
+#if !defined(LUA_VERSION_NUM)
+#define lua_pushinteger(L, n) lua_pushnumber(L, (lua_Number)n)
+#define luaL_Reg luaL_reg
+#endif
+
+/* some Lua 5.1 compatibility support. */
+#if !defined(LUA_VERSION_NUM) || (LUA_VERSION_NUM == 501)
+/*
+** Adapted from Lua 5.2.0
+*/
+static void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
+  luaL_checkstack(L, nup, "too many upvalues");
+  for (; l->name != NULL; l++) {  /* fill the table with given functions */
+    int i;
+    for (i = 0; i < nup; i++)  /* copy upvalues to the top */
+      lua_pushvalue(L, -nup);
+    lua_pushstring(L, l->name);
+    lua_pushcclosure(L, l->func, nup);  /* closure with those upvalues */
+    lua_settable(L, -(nup + 3));
+  }
+  lua_pop(L, nup);  /* remove upvalues */
+}
+
+#define lua_load_no_mode(L, reader, data, source) \
+	lua_load(L, reader, data, source)
+
+#define lua_rawlen(L, idx) lua_objlen(L, idx)
+
+#endif
+
+#if LUA_VERSION_NUM == 502
+
+#define lua_load_no_mode(L, reader, data, source) \
+	lua_load(L, reader, data, source, NULL)
+
+static int luaL_typerror (lua_State *L, int narg, const char *tname) {
+  const char *msg = lua_pushfstring(L, "%s expected, got %s",
+                                    tname, luaL_typename(L, narg));
+  return luaL_argerror(L, narg, msg);
+}
+
+#endif
+
 #define REG_PACKAGE_IS_CONSTRUCTOR 0
 #define REG_MODULES_AS_GLOBALS 1
 #define REG_OBJECTS_AS_GLOBALS 0
@@ -129,6 +177,7 @@ typedef void (*dyn_caster_t)(void **obj, obj_type **type);
 
 #define OBJ_TYPE_FLAG_WEAK_REF (1<<0)
 #define OBJ_TYPE_SIMPLE (1<<1)
+#define OBJ_TYPE_IMPORT (1<<2)
 struct obj_type {
 	dyn_caster_t    dcaster;  /**< caster to support casting to sub-objects. */
 	int32_t         id;       /**< type's id. */
@@ -183,15 +232,21 @@ typedef enum {
 	REG_META,
 } module_reg_type;
 
+typedef struct reg_impl {
+	const char *if_name;
+	const void *impl;
+} reg_impl;
+
 typedef struct reg_sub_module {
 	obj_type        *type;
 	module_reg_type req_type;
-	const luaL_reg  *pub_funcs;
-	const luaL_reg  *methods;
-	const luaL_reg  *metas;
+	const luaL_Reg  *pub_funcs;
+	const luaL_Reg  *methods;
+	const luaL_Reg  *metas;
 	const obj_base  *bases;
 	const obj_field *fields;
 	const obj_const *constants;
+	const reg_impl  *implements;
 	int             bidirectional_consts;
 } reg_sub_module;
 
@@ -395,7 +450,7 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 		lua_settable(L, priv_table);
 		ffi_exports++;
 	}
-	err = lua_load(L, nobj_lua_Reader, &state, ffi_mod_name);
+	err = lua_load_no_mode(L, nobj_lua_Reader, &state, ffi_mod_name);
 	if(0 == err) {
 		lua_pushvalue(L, -2); /* dup C module's table. */
 		lua_pushvalue(L, priv_table); /* move priv_table to top of stack. */
@@ -415,11 +470,194 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 }
 #endif
 
+
+typedef struct {
+	void *impl;
+	void *obj;
+} obj_implement;
+
+static FUNC_UNUSED void *obj_implement_luaoptional(lua_State *L, int _index, void **impl, char *if_name) {
+	void *ud;
+	if(lua_isnoneornil(L, _index)) {
+		return NULL;
+	}
+	/* get the implements table for this interface. */
+	lua_pushlightuserdata(L, if_name);
+	lua_rawget(L, LUA_REGISTRYINDEX);
+
+	/* get pointer to userdata value & check if it is a userdata value. */
+	ud = (obj_implement *)lua_touserdata(L, _index);
+	if(ud != NULL) {
+		/* get the userdata's metatable */
+		if(lua_getmetatable(L, _index)) {
+			/* lookup metatable in interface table for this object's implementation of the interface. */
+			lua_gettable(L, -2);
+		} else {
+			/* no metatable. */
+			goto no_interface;
+		}
+#if LUAJIT_FFI
+	} else if(nobj_ffi_support_enabled_hint) { /* handle cdata. */
+		/* get cdata interface check function from interface table. */
+		lua_getfield(L, -1, "cdata");
+		if(lua_isfunction(L, -1)) {
+			/* pass cdata to function, return value should be an implmentation. */
+			lua_pushvalue(L, _index);
+			lua_call(L, 1, 1);
+			/* get pointer to cdata. */
+			ud = (void *)lua_topointer(L, _index);
+		} else {
+			lua_pop(L, 1); /* pop non-function. */
+			goto no_interface;
+		}
+#endif
+	} else {
+		goto no_interface;
+	}
+
+	if(!lua_isnil(L, -1)) {
+		*impl = lua_touserdata(L, -1);
+		lua_pop(L, 2); /* pop interface table & implementation. */
+		/* object implements interface. */
+		return ud;
+	} else {
+		lua_pop(L, 1); /* pop nil. */
+	}
+no_interface:
+	lua_pop(L, 1); /* pop interface table. */
+	return NULL;
+}
+
+static FUNC_UNUSED void *obj_implement_luacheck(lua_State *L, int _index, void **impl, char *type) {
+	void *ud = obj_implement_luaoptional(L, _index, impl, type);
+	if(ud == NULL) {
+#define ERROR_BUFFER_SIZE 256
+		char buf[ERROR_BUFFER_SIZE];
+		snprintf(buf, ERROR_BUFFER_SIZE-1,"Expected object with %s interface", type);
+		/* value doesn't implement this interface. */
+		luaL_argerror(L, _index, buf);
+	}
+	return ud;
+}
+
+/* use static pointer as key to interfaces table. (version 1.0) */
+static char obj_interfaces_table_key[] = "obj_interfaces<1.0>_table_key";
+
+static void obj_get_global_interfaces_table(lua_State *L) {
+	/* get global interfaces table. */
+	lua_getfield(L, LUA_REGISTRYINDEX, obj_interfaces_table_key);
+	if(lua_isnil(L, -1)) {
+		/* Need to create global interfaces table. */
+		lua_pop(L, 1); /* pop nil */
+		lua_createtable(L, 0, 4); /* 0 size array part, small hash part. */
+		lua_pushvalue(L, -1); /* dup table. */
+		/* store interfaces table in Lua registery. */
+		lua_setfield(L, LUA_REGISTRYINDEX, obj_interfaces_table_key);
+	}
+}
+
+static void obj_get_interface(lua_State *L, const char *name, int global_if_tab) {
+	/* get a interface's implementation table */
+	lua_getfield(L, global_if_tab, name);
+	if(lua_isnil(L, -1)) {
+		lua_pop(L, 1); /* pop nil */
+		/* new interface. (i.e. no object implement it yet.)
+		 *
+		 * create an empty table for this interface that will be used when an
+		 * implementation is registered for this interface.
+		 */
+		lua_createtable(L, 0, 2); /* 0 size array part, small hash part. */
+		lua_pushvalue(L, -1); /* dup table. */
+		lua_setfield(L, global_if_tab, name); /* store interface in global interfaces table. */
+	}
+}
+
+static int obj_get_userdata_interface(lua_State *L) {
+	/* get the userdata's metatable */
+	if(lua_getmetatable(L, 2)) {
+		/* lookup metatable in interface table for the userdata's implementation of the interface. */
+		lua_gettable(L, 1);
+		if(!lua_isnil(L, -1)) {
+			/* return the implementation. */
+			return 1;
+		}
+	}
+	/* no metatable or no implementation. */
+	return 0;
+}
+
+static void obj_interface_register(lua_State *L, char *name, int global_if_tab) {
+	/* get the table of implementations for this interface. */
+	obj_get_interface(L, name, global_if_tab);
+
+	/* check for 'userdata' function. */
+	lua_getfield(L, -1, "userdata");
+	if(lua_isnil(L, -1)) {
+		lua_pop(L, 1); /* pop nil. */
+		/* add C function for getting a userdata's implementation. */
+		lua_pushcfunction(L, obj_get_userdata_interface);
+		lua_setfield(L, -2, "userdata");
+	} else {
+		/* already have function. */
+		lua_pop(L, 1); /* pop C function. */
+	}
+	/* we are going to use a lightuserdata pointer for fast lookup of the interface's impl. table. */
+	lua_pushlightuserdata(L, name);
+	lua_insert(L, -2);
+	lua_settable(L, LUA_REGISTRYINDEX);
+}
+
+static void obj_register_interfaces(lua_State *L, char *interfaces[]) {
+	int i;
+	int if_tab;
+	/* get global interfaces table. */
+	obj_get_global_interfaces_table(L);
+	if_tab = lua_gettop(L);
+
+	for(i = 0; interfaces[i] != NULL ; i++) {
+		obj_interface_register(L, interfaces[i], if_tab);
+	}
+	lua_pop(L, 1); /* pop global interfaces table. */
+}
+
+static void obj_type_register_implement(lua_State *L, const reg_impl *impl, int global_if_tab, int mt_tab) {
+	/* get the table of implementations for this interface. */
+	obj_get_interface(L, impl->if_name, global_if_tab);
+
+	/* register object's implement in the interface table. */
+	lua_pushvalue(L, mt_tab);
+	lua_pushlightuserdata(L, (void *)impl->impl);
+	lua_settable(L, -3);
+
+	lua_pop(L, 1); /* pop inteface table. */
+}
+
+static void obj_type_register_implements(lua_State *L, const reg_impl *impls) {
+	int if_tab;
+	int mt_tab;
+	/* get absolute position of object's metatable. */
+	mt_tab = lua_gettop(L);
+	/* get global interfaces table. */
+	obj_get_global_interfaces_table(L);
+	if_tab = lua_gettop(L);
+
+	for(; impls->if_name != NULL ; impls++) {
+		obj_type_register_implement(L, impls, if_tab, mt_tab);
+	}
+	lua_pop(L, 1); /* pop global interfaces table. */
+}
+
 #ifndef REG_PACKAGE_IS_CONSTRUCTOR
 #define REG_PACKAGE_IS_CONSTRUCTOR 1
 #endif
 
 #ifndef REG_MODULES_AS_GLOBALS
+#define REG_MODULES_AS_GLOBALS 0
+#endif
+
+/* For Lua 5.2 don't register modules as globals. */
+#if LUA_VERSION_NUM == 502
+#undef REG_MODULES_AS_GLOBALS
 #define REG_MODULES_AS_GLOBALS 0
 #endif
 
@@ -431,6 +669,48 @@ static int nobj_try_loading_ffi(lua_State *L, const char *ffi_mod_name,
 #define OBJ_DATA_HIDDEN_METATABLE 1
 #endif
 
+static FUNC_UNUSED int obj_import_external_type(lua_State *L, obj_type *type) {
+	/* find the external type's metatable using it's name. */
+	lua_pushstring(L, type->name);
+	lua_rawget(L, LUA_REGISTRYINDEX); /* external type's metatable. */
+	if(!lua_isnil(L, -1)) {
+		/* found it.  Now we will map our 'type' pointer to the metatable. */
+		/* REGISTERY[lightuserdata<type>] = REGISTERY[type->name] */
+		lua_pushlightuserdata(L, type); /* use our 'type' pointer as lookup key. */
+		lua_pushvalue(L, -2); /* dup. type's metatable. */
+		lua_rawset(L, LUA_REGISTRYINDEX); /* save external type's metatable. */
+		/* NOTE: top of Lua stack still has the type's metatable. */
+		return 1;
+	} else {
+		lua_pop(L, 1); /* pop nil. */
+	}
+	return 0;
+}
+
+static FUNC_UNUSED int obj_import_external_ffi_type(lua_State *L, obj_type *type) {
+	/* find the external type's metatable using it's name. */
+	lua_pushstring(L, type->name);
+	lua_rawget(L, LUA_REGISTRYINDEX); /* external type's metatable. */
+	if(!lua_isnil(L, -1)) {
+		/* found it.  Now we will map our 'type' pointer to the C check function. */
+		/* _priv_table[lightuserdata<type>] = REGISTERY[type->name].c_check */
+		lua_getfield(L, -1, "c_check");
+		lua_remove(L, -2); /* remove metatable. */
+		if(lua_isfunction(L, -1)) {
+			lua_pushlightuserdata(L, type); /* use our 'type' pointer as lookup key. */
+			lua_pushvalue(L, -2); /* dup. check function */
+			lua_rawset(L, -4); /* save check function to module's private table. */
+			/* NOTE: top of Lua stack still has the type's C check function. */
+			return 1;
+		} else {
+			lua_pop(L, 1); /* pop non function value. */
+		}
+	} else {
+		lua_pop(L, 1); /* pop nil. */
+	}
+	return 0;
+}
+
 static FUNC_UNUSED obj_udata *obj_udata_toobj(lua_State *L, int _index) {
 	obj_udata *ud;
 	size_t len;
@@ -441,7 +721,7 @@ static FUNC_UNUSED obj_udata *obj_udata_toobj(lua_State *L, int _index) {
 		luaL_typerror(L, _index, "userdata"); /* is not a userdata value. */
 	}
 	/* verify userdata size. */
-	len = lua_objlen(L, _index);
+	len = lua_rawlen(L, _index);
 	if(len != sizeof(obj_udata)) {
 		/* This shouldn't be possible */
 		luaL_error(L, "invalid userdata size: size=%d, expected=%d", len, sizeof(obj_udata));
@@ -454,10 +734,23 @@ static FUNC_UNUSED int obj_udata_is_compatible(lua_State *L, obj_udata *ud, void
 	obj_type *ud_type;
 	lua_pushlightuserdata(L, type);
 	lua_rawget(L, LUA_REGISTRYINDEX); /* type's metatable. */
+recheck_metatable:
 	if(lua_rawequal(L, -1, -2)) {
 		*obj = ud->obj;
 		/* same type no casting needed. */
 		return 1;
+	} else if(lua_isnil(L, -1)) {
+		lua_pop(L, 1); /* pop nil. */
+		if((type->flags & OBJ_TYPE_IMPORT) == 0) {
+			/* can't resolve internal type. */
+			luaL_error(L, "Unknown object type(id=%d, name=%s)", type->id, type->name);
+		}
+		/* try to import external type. */
+		if(obj_import_external_type(L, type)) {
+			/* imported type, re-try metatable check. */
+			goto recheck_metatable;
+		}
+		/* External type not yet available, so the object can't be compatible. */
 	} else {
 		/* Different types see if we can cast to the required type. */
 		lua_rawgeti(L, -2, type->id);
@@ -510,7 +803,7 @@ static FUNC_UNUSED obj_udata *obj_udata_luacheck_internal(lua_State *L, int _ind
 				return ud;
 			}
 		}
-	} else {
+	} else if(!lua_isnoneornil(L, _index)) {
 		/* handle cdata. */
 		/* get private table. */
 		lua_pushlightuserdata(L, obj_udata_private_key);
@@ -519,16 +812,30 @@ static FUNC_UNUSED obj_udata *obj_udata_luacheck_internal(lua_State *L, int _ind
 		lua_pushlightuserdata(L, type);
 		lua_rawget(L, -2);
 
-		/* pass cdata value to type checking function. */
-		lua_pushvalue(L, _index);
-		lua_call(L, 1, 1);
+		/* check for function. */
 		if(!lua_isnil(L, -1)) {
-			/* valid type get pointer from cdata. */
+got_check_func:
+			/* pass cdata value to type checking function. */
+			lua_pushvalue(L, _index);
+			lua_call(L, 1, 1);
+			if(!lua_isnil(L, -1)) {
+				/* valid type get pointer from cdata. */
+				lua_pop(L, 2);
+				*obj = *(void **)lua_topointer(L, _index);
+				return ud;
+			}
 			lua_pop(L, 2);
-			*obj = *(void **)lua_topointer(L, _index);
-			return ud;
+		} else {
+			lua_pop(L, 1); /* pop nil. */
+			if(type->flags & OBJ_TYPE_IMPORT) {
+				/* try to import external ffi type. */
+				if(obj_import_external_ffi_type(L, type)) {
+					/* imported type. */
+					goto got_check_func;
+				}
+				/* External type not yet available, so the object can't be compatible. */
+			}
 		}
-		lua_pop(L, 2);
 	}
 	if(not_delete) {
 		luaL_typerror(L, _index, type->name); /* is not a userdata value. */
@@ -544,7 +851,7 @@ static FUNC_UNUSED void *obj_udata_luacheck(lua_State *L, int _index, obj_type *
 
 static FUNC_UNUSED void *obj_udata_luaoptional(lua_State *L, int _index, obj_type *type) {
 	void *obj = NULL;
-	if(lua_gettop(L) < _index) {
+	if(lua_isnoneornil(L, _index)) {
 		return obj;
 	}
 	obj_udata_luacheck_internal(L, _index, &(obj), type, 1);
@@ -729,12 +1036,26 @@ static FUNC_UNUSED void * obj_simple_udata_luacheck(lua_State *L, int _index, ob
 		if(lua_getmetatable(L, _index)) {
 			lua_pushlightuserdata(L, type);
 			lua_rawget(L, LUA_REGISTRYINDEX); /* type's metatable. */
+recheck_metatable:
 			if(lua_rawequal(L, -1, -2)) {
 				lua_pop(L, 2); /* pop both metatables. */
 				return ud;
+			} else if(lua_isnil(L, -1)) {
+				lua_pop(L, 1); /* pop nil. */
+				if((type->flags & OBJ_TYPE_IMPORT) == 0) {
+					/* can't resolve internal type. */
+					luaL_error(L, "Unknown object type(id=%d, name=%s)", type->id, type->name);
+				}
+				/* try to import external type. */
+				if(obj_import_external_type(L, type)) {
+					/* imported type, re-try metatable check. */
+					goto recheck_metatable;
+				}
+				/* External type not yet available, so the object can't be compatible. */
+				return 0;
 			}
 		}
-	} else {
+	} else if(!lua_isnoneornil(L, _index)) {
 		/* handle cdata. */
 		/* get private table. */
 		lua_pushlightuserdata(L, obj_udata_private_key);
@@ -743,22 +1064,34 @@ static FUNC_UNUSED void * obj_simple_udata_luacheck(lua_State *L, int _index, ob
 		lua_pushlightuserdata(L, type);
 		lua_rawget(L, -2);
 
-		/* pass cdata value to type checking function. */
-		lua_pushvalue(L, _index);
-		lua_call(L, 1, 1);
+		/* check for function. */
 		if(!lua_isnil(L, -1)) {
-			/* valid type get pointer from cdata. */
-			lua_pop(L, 2);
-			return (void *)lua_topointer(L, _index);
+got_check_func:
+			/* pass cdata value to type checking function. */
+			lua_pushvalue(L, _index);
+			lua_call(L, 1, 1);
+			if(!lua_isnil(L, -1)) {
+				/* valid type get pointer from cdata. */
+				lua_pop(L, 2);
+				return (void *)lua_topointer(L, _index);
+			}
+		} else {
+			if(type->flags & OBJ_TYPE_IMPORT) {
+				/* try to import external ffi type. */
+				if(obj_import_external_ffi_type(L, type)) {
+					/* imported type. */
+					goto got_check_func;
+				}
+				/* External type not yet available, so the object can't be compatible. */
+			}
 		}
-		lua_pop(L, 2);
 	}
 	luaL_typerror(L, _index, type->name); /* is not a userdata value. */
 	return NULL;
 }
 
 static FUNC_UNUSED void * obj_simple_udata_luaoptional(lua_State *L, int _index, obj_type *type) {
-	if(lua_gettop(L) < _index) {
+	if(lua_isnoneornil(L, _index)) {
 		return NULL;
 	}
 	return obj_simple_udata_luacheck(L, _index, type);
@@ -804,9 +1137,9 @@ static FUNC_UNUSED void *obj_simple_udata_luapush(lua_State *L, void *obj, int s
 /* default simple object equal method. */
 static FUNC_UNUSED int obj_simple_udata_default_equal(lua_State *L) {
 	void *ud1 = obj_simple_udata_toobj(L, 1);
-	size_t len1 = lua_objlen(L, 1);
+	size_t len1 = lua_rawlen(L, 1);
 	void *ud2 = obj_simple_udata_toobj(L, 2);
-	size_t len2 = lua_objlen(L, 2);
+	size_t len2 = lua_rawlen(L, 2);
 
 	if(len1 == len2) {
 		lua_pushboolean(L, (memcmp(ud1, ud2, len1) == 0));
@@ -885,12 +1218,12 @@ static void obj_type_register_constants(lua_State *L, const obj_const *constants
 }
 
 static void obj_type_register_package(lua_State *L, const reg_sub_module *type_reg) {
-	const luaL_reg *reg_list = type_reg->pub_funcs;
+	const luaL_Reg *reg_list = type_reg->pub_funcs;
 
 	/* create public functions table. */
 	if(reg_list != NULL && reg_list[0].name != NULL) {
 		/* register functions */
-		luaL_register(L, NULL, reg_list);
+		luaL_setfuncs(L, reg_list, 0);
 	}
 
 	obj_type_register_constants(L, type_reg->constants, -1, type_reg->bidirectional_consts);
@@ -899,23 +1232,23 @@ static void obj_type_register_package(lua_State *L, const reg_sub_module *type_r
 }
 
 static void obj_type_register_meta(lua_State *L, const reg_sub_module *type_reg) {
-	const luaL_reg *reg_list;
+	const luaL_Reg *reg_list;
 
 	/* create public functions table. */
 	reg_list = type_reg->pub_funcs;
 	if(reg_list != NULL && reg_list[0].name != NULL) {
 		/* register functions */
-		luaL_register(L, NULL, reg_list);
+		luaL_setfuncs(L, reg_list, 0);
 	}
 
 	obj_type_register_constants(L, type_reg->constants, -1, type_reg->bidirectional_consts);
 
 	/* register methods. */
-	luaL_register(L, NULL, type_reg->methods);
+	luaL_setfuncs(L, type_reg->methods, 0);
 
 	/* create metatable table. */
 	lua_newtable(L);
-	luaL_register(L, NULL, type_reg->metas); /* fill metatable */
+	luaL_setfuncs(L, type_reg->metas, 0); /* fill metatable */
 	/* setmetatable on meta-object. */
 	lua_setmetatable(L, -2);
 
@@ -923,7 +1256,7 @@ static void obj_type_register_meta(lua_State *L, const reg_sub_module *type_reg)
 }
 
 static void obj_type_register(lua_State *L, const reg_sub_module *type_reg, int priv_table) {
-	const luaL_reg *reg_list;
+	const luaL_Reg *reg_list;
 	obj_type *type = type_reg->type;
 	const obj_base *base = type_reg->bases;
 
@@ -940,7 +1273,7 @@ static void obj_type_register(lua_State *L, const reg_sub_module *type_reg, int 
 	reg_list = type_reg->pub_funcs;
 	if(reg_list != NULL && reg_list[0].name != NULL) {
 		/* register "constructors" as to object's public API */
-		luaL_register(L, NULL, reg_list); /* fill public API table. */
+		luaL_setfuncs(L, reg_list, 0); /* fill public API table. */
 
 		/* make public API table callable as the default constructor. */
 		lua_newtable(L); /* create metatable */
@@ -970,7 +1303,7 @@ static void obj_type_register(lua_State *L, const reg_sub_module *type_reg, int 
 #endif
 	}
 
-	luaL_register(L, NULL, type_reg->methods); /* fill methods table. */
+	luaL_setfuncs(L, type_reg->methods, 0); /* fill methods table. */
 
 	luaL_newmetatable(L, type->name); /* create metatable */
 	lua_pushliteral(L, ".name");
@@ -988,7 +1321,7 @@ static void obj_type_register(lua_State *L, const reg_sub_module *type_reg, int 
 	lua_pushvalue(L, -2); /* dup metatable. */
 	lua_rawset(L, priv_table);    /* priv_table["<object_name>"] = metatable */
 
-	luaL_register(L, NULL, type_reg->metas); /* fill metatable */
+	luaL_setfuncs(L, type_reg->metas, 0); /* fill metatable */
 
 	/* add obj_bases to metatable. */
 	while(base->id >= 0) {
@@ -998,6 +1331,8 @@ static void obj_type_register(lua_State *L, const reg_sub_module *type_reg, int 
 	}
 
 	obj_type_register_constants(L, type_reg->constants, -2, type_reg->bidirectional_consts);
+
+	obj_type_register_implements(L, type_reg->implements);
 
 	lua_pushliteral(L, "__index");
 	lua_pushvalue(L, -3);               /* dup methods table */
@@ -1016,6 +1351,80 @@ static FUNC_UNUSED int lua_checktype_ref(lua_State *L, int _index, int _type) {
 	lua_pushvalue(L,_index);
 	return luaL_ref(L, LUA_REGISTRYINDEX);
 }
+
+/* use static pointer as key to weak callback_state table. */
+static char obj_callback_state_weak_ref_key[] = "obj_callback_state_weak_ref_key";
+
+static FUNC_UNUSED void *nobj_get_callback_state(lua_State *L, int owner_idx, int size) {
+	void *cb_state;
+
+	lua_pushlightuserdata(L, obj_callback_state_weak_ref_key); /* key for weak table. */
+	lua_rawget(L, LUA_REGISTRYINDEX);  /* check if weak table exists already. */
+	if(lua_isnil(L, -1)) {
+		lua_pop(L, 1); /* pop nil. */
+		/* create weak table for callback_state */
+		lua_newtable(L);               /* weak table. */
+		lua_newtable(L);               /* metatable for weak table. */
+		lua_pushliteral(L, "__mode");
+		lua_pushliteral(L, "k");
+		lua_rawset(L, -3);             /* metatable.__mode = 'k'  weak keys. */
+		lua_setmetatable(L, -2);       /* add metatable to weak table. */
+		lua_pushlightuserdata(L, obj_callback_state_weak_ref_key); /* key for weak table. */
+		lua_pushvalue(L, -2);          /* dup weak table. */
+		lua_rawset(L, LUA_REGISTRYINDEX);  /* add weak table to registry. */
+	}
+
+	/* check weak table for callback_state. */
+	lua_pushvalue(L, owner_idx); /* dup. owner as lookup key. */
+	lua_rawget(L, -2);
+	if(lua_isnil(L, -1)) {
+		lua_pop(L, 1); /* pop nil. */
+		lua_pushvalue(L, owner_idx); /* dup. owner as lookup key. */
+		/* create new callback state. */
+		cb_state = lua_newuserdata(L, size);
+		lua_rawset(L, -3);
+		lua_pop(L, 1); /* pop <weak table> */
+	} else {
+		/* got existing callback state. */
+		cb_state = lua_touserdata(L, -1);
+		lua_pop(L, 2); /* pop <weak table>, <callback_state> */
+	}
+
+	return cb_state;
+}
+
+static FUNC_UNUSED void *nobj_delete_callback_state(lua_State *L, int owner_idx) {
+	void *cb_state = NULL;
+
+	lua_pushlightuserdata(L, obj_callback_state_weak_ref_key); /* key for weak table. */
+	lua_rawget(L, LUA_REGISTRYINDEX);  /* check if weak table exists already. */
+	if(lua_isnil(L, -1)) {
+		lua_pop(L, 1); /* pop nil.  no weak table, so there is no callback state. */
+		return NULL;
+	}
+	/* get callback state. */
+	lua_pushvalue(L, owner_idx); /* dup. owner */
+	lua_rawget(L, -2);
+	if(lua_isnil(L, -1)) {
+		lua_pop(L, 2); /* pop <weak table>, nil.  No callback state for the owner. */
+	} else {
+		cb_state = lua_touserdata(L, -1);
+		lua_pop(L, 1); /* pop <state> */
+		/* remove callback state. */
+		lua_pushvalue(L, owner_idx); /* dup. owner */
+		lua_pushnil(L);
+		lua_rawset(L, -3);
+		lua_pop(L, 1); /* pop <weak table> */
+	}
+
+	return cb_state;
+}
+
+
+
+static char *obj_interfaces[] = {
+  NULL,
+};
 
 
 
@@ -1140,7 +1549,6 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "end\n"
 "\n"
 "local _M, _priv, reg_table = ...\n"
-"local REG_MODULES_AS_GLOBALS = false\n"
 "local REG_OBJECTS_AS_GLOBALS = false\n"
 "local C = ffi.C\n"
 "\n"
@@ -1222,6 +1630,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	end\n"
 "end\n"
 "\n"
+"\n"
 "-- detect zmq version\n"
 "local VERSION_2_0 = true\n"
 "local VERSION_2_1 = false\n"
@@ -1248,6 +1657,20 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "ZMQ_Error zmq_recvmsg(ZMQ_Socket *sock, zmq_msg_t *msg, int flags) __asm__(\"zmq_recv\");\n"
 "]==]\n"
 "end\n"
+"\n"
+"ffi_safe_cdef(\"MutableBufferIF\", [[\n"
+"typedef struct MutableBuffer_if {\n"
+"  uint8_t * (* const data)(void *this_v);\n"
+"  size_t (* const get_size)(void *this_v);\n"
+"} MutableBufferIF;\n"
+"]])\n"
+"\n"
+"ffi_safe_cdef(\"BufferIF\", [[\n"
+"typedef struct Buffer_if {\n"
+"  const uint8_t * (* const const_data)(void *this_v);\n"
+"  size_t (* const get_size)(void *this_v);\n"
+"} BufferIF;\n"
+"]])\n"
 "\n"
 "local Cmod = ffi_load_cmodule(\"zmq\", false)\n"
 "local C = Cmod\n"
@@ -1452,14 +1875,12 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "\n"
 "]]\n"
 "\n"
-"REG_MODULES_AS_GLOBALS = true\n"
 "REG_OBJECTS_AS_GLOBALS = false\n"
+"local _obj_interfaces_ffi = {}\n"
 "local _pub = {}\n"
 "local _meth = {}\n"
 "local _push = {}\n"
 "local _obj_subs = {}\n"
-"local _type_names = {}\n"
-"local _ctypes = {}\n"
 "for obj_name,mt in pairs(_priv) do\n"
 "	if type(mt) == 'table' then\n"
 "		_obj_subs[obj_name] = {}\n"
@@ -1472,17 +1893,112 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	_pub[obj_name] = pub\n"
 "end\n"
 "\n"
+"--\n"
+"-- CData Metatable access\n"
+"--\n"
+"local _ctypes = {}\n"
+"local _type_names = {}\n"
+"local _get_mt_key = {}\n"
+"local _ctype_meta_map = {}\n"
+"\n"
+"local f_typeof = ffi.typeof\n"
+"local function get_cdata_type_id(cdata)\n"
+"	return tonumber(f_typeof(cdata))\n"
+"end\n"
+"local function get_cdata_mt(cdata)\n"
+"	return _ctype_meta_map[tonumber(f_typeof(cdata))]\n"
+"end\n"
+"\n"
+"local function obj_register_ctype(name, ctype)\n"
+"	local obj_mt = _priv[name]\n"
+"	local obj_type = obj_mt['.type']\n"
+"	local obj_ctype = ffi.typeof(ctype)\n"
+"	local obj_type_id = tonumber(obj_ctype)\n"
+"	_ctypes[name] = obj_ctype\n"
+"	_type_names[name] = tostring(obj_ctype)\n"
+"	_ctype_meta_map[obj_type_id] = obj_mt\n"
+"	_ctype_meta_map[obj_mt] = obj_type_id\n"
+"	return obj_mt, obj_type, obj_ctype\n"
+"end\n"
+"\n"
+"--\n"
+"-- Interfaces helper code.\n"
+"--\n"
+"local _obj_interfaces_key = \"obj_interfaces<1.0>_table_key\"\n"
+"local _obj_interfaces_ud = reg_table[_obj_interfaces_key]\n"
+"local _obj_interfaces_key_ffi = _obj_interfaces_key .. \"_LJ2_FFI\"\n"
+"_obj_interfaces_ffi = reg_table[_obj_interfaces_key_ffi]\n"
+"if not _obj_interfaces_ffi then\n"
+"	-- create missing interfaces table for FFI bindings.\n"
+"	_obj_interfaces_ffi = {}\n"
+"	reg_table[_obj_interfaces_key_ffi] = _obj_interfaces_ffi\n"
+"end\n"
+"\n"
+"local function obj_get_userdata_interface(if_name, expected_err)\n"
+"	local impls_ud = _obj_interfaces_ud[if_name]\n"
+"	if not impls_ud then\n"
+"		impls_ud = {}\n"
+"		_obj_interfaces_ud[if_name] = impls_ud\n"
+"	end\n"
+"	-- create cdata check function to be used by non-ffi bindings.\n"
+"	if not impls_ud.cdata then\n"
+"		function impls_ud.cdata(obj)\n"
+"			return assert(impls_ud[get_cdata_mt(obj)], expected_err)\n"
+"		end\n"
+"	end\n"
+"	return impls_ud\n"
+"end\n"
+"\n"
+"local function obj_get_interface_check(if_name, expected_err)\n"
+"	local impls_ffi = _obj_interfaces_ffi[if_name]\n"
+"	if not impls_ffi then\n"
+"		local if_type = ffi.typeof(if_name .. \" *\")\n"
+"		local impls_ud = obj_get_userdata_interface(if_name, expected_err)\n"
+"		-- create table for FFI-based interface implementations.\n"
+"		impls_ffi = setmetatable({}, {\n"
+"		__index = function(impls_ffi, mt)\n"
+"			local impl = impls_ud[mt]\n"
+"			if impl then\n"
+"				-- cast to cdata\n"
+"				impl = if_type(impl)\n"
+"				rawset(impls_ffi, mt, impl)\n"
+"			end\n"
+"			return impl\n"
+"		end})\n"
+"		_obj_interfaces_ffi[if_name] = impls_ffi\n"
+"\n"
+"		-- create check function for this interface.\n"
+"		function impls_ffi.check(obj)\n"
+"			local impl\n"
+"			if type(obj) == 'cdata' then\n"
+"				impl = impls_ffi[get_cdata_type_id(obj)]\n"
+"			else\n"
+"				impl = impls_ud.userdata(impls_ffi, obj)\n"
+"			end\n"
+"			return assert(impl, expected_err)\n"
+"		end\n"
+"	end\n"
+"	return impls_ffi.check\n"
+"end\n"
+"\n"
+"local function obj_register_interface(if_name, obj_name)\n"
+"	-- loopkup cdata id\n"
+"	local obj_mt = _priv[obj_name]\n"
+"	local obj_type_id = _ctype_meta_map[obj_mt]\n"
+"	local impl_meths = {}\n"
+"	local ffi_impls = _obj_interfaces_ffi[if_name]\n"
+"	ffi_impls[obj_type_id] = impl_meths\n"
+"	_meth[obj_name]['NOBJ_get_' .. if_name] = impl_meths\n"
+"	return impl_meths\n"
+"end\n"
+"\n"
 "\n"
 "local obj_type_zmq_msg_t_check\n"
 "local obj_type_zmq_msg_t_delete\n"
 "local obj_type_zmq_msg_t_push\n"
 "\n"
 "do\n"
-"	local obj_mt = _priv.zmq_msg_t\n"
-"	local obj_type = obj_mt['.type']\n"
-"	local obj_ctype = ffi.typeof(\"zmq_msg_t\")\n"
-"	_ctypes.zmq_msg_t = obj_ctype\n"
-"	_type_names.zmq_msg_t = tostring(obj_ctype)\n"
+"	local obj_mt, obj_type, obj_ctype = obj_register_ctype(\"zmq_msg_t\", \"zmq_msg_t\")\n"
 "	local zmq_msg_t_sizeof = ffi.sizeof\"zmq_msg_t\"\n"
 "\n"
 "	function obj_type_zmq_msg_t_check(obj)\n"
@@ -1508,10 +2024,11 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	end\n"
 "\n"
 "	-- type checking function for C API.\n"
-"	_priv[obj_type] = function(obj)\n"
+"	local function c_check(obj)\n"
 "		if ffi.istype(obj_type, obj) then return obj end\n"
 "		return nil\n"
 "	end\n"
+"	_priv[obj_type] = c_check\n"
 "	-- push function for C API.\n"
 "	reg_table[obj_type] = function(ptr)\n"
 "		local obj = obj_ctype()\n"
@@ -1519,19 +2036,18 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "		return obj\n"
 "	end\n"
 "\n"
+"	-- export check functions for use in other modules.\n"
+"	obj_mt.c_check = c_check\n"
+"	obj_mt.ffi_check = obj_type_zmq_msg_t_check\n"
 "end\n"
 "\n"
-"\n"
+"\n", /* ----- CUT ----- */
 "local obj_type_ZMQ_Socket_check\n"
 "local obj_type_ZMQ_Socket_delete\n"
 "local obj_type_ZMQ_Socket_push\n"
 "\n"
 "do\n"
-"	local obj_mt = _priv.ZMQ_Socket\n"
-"	local obj_type = obj_mt['.type']\n"
-"	local obj_ctype = ffi.typeof(\"ZMQ_Socket *\")\n"
-"	_ctypes.ZMQ_Socket = obj_ctype\n"
-"	_type_names.ZMQ_Socket = tostring(obj_ctype)\n"
+"	local obj_mt, obj_type, obj_ctype = obj_register_ctype(\"ZMQ_Socket\", \"ZMQ_Socket *\")\n"
 "\n"
 "	function obj_type_ZMQ_Socket_check(ptr)\n"
 "		-- if ptr is nil or is the correct type, then just return it.\n"
@@ -1572,15 +2088,15 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	end\n"
 "\n"
 "	-- type checking function for C API.\n"
-"	_priv[obj_type] = function(ptr)\n"
-"		if ffi.istype(obj_ctype, ptr) then return ptr end\n"
-"		return nil\n"
-"	end\n"
+"	_priv[obj_type] = obj_type_ZMQ_Socket_check\n"
 "	-- push function for C API.\n"
 "	reg_table[obj_type] = function(ptr, flags)\n"
 "		return obj_type_ZMQ_Socket_push(ffi.cast(obj_ctype,ptr), flags)\n"
 "	end\n"
 "\n"
+"	-- export check functions for use in other modules.\n"
+"	obj_mt.c_check = obj_type_ZMQ_Socket_check\n"
+"	obj_mt.ffi_check = obj_type_ZMQ_Socket_check\n"
 "end\n"
 "\n"
 "\n"
@@ -1589,11 +2105,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "local obj_type_ZMQ_Poller_push\n"
 "\n"
 "do\n"
-"	local obj_mt = _priv.ZMQ_Poller\n"
-"	local obj_type = obj_mt['.type']\n"
-"	local obj_ctype = ffi.typeof(\"ZMQ_Poller\")\n"
-"	_ctypes.ZMQ_Poller = obj_ctype\n"
-"	_type_names.ZMQ_Poller = tostring(obj_ctype)\n"
+"	local obj_mt, obj_type, obj_ctype = obj_register_ctype(\"ZMQ_Poller\", \"ZMQ_Poller\")\n"
 "	local ZMQ_Poller_sizeof = ffi.sizeof\"ZMQ_Poller\"\n"
 "\n"
 "	function obj_type_ZMQ_Poller_check(obj)\n"
@@ -1619,10 +2131,11 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	end\n"
 "\n"
 "	-- type checking function for C API.\n"
-"	_priv[obj_type] = function(obj)\n"
+"	local function c_check(obj)\n"
 "		if ffi.istype(obj_type, obj) then return obj end\n"
 "		return nil\n"
 "	end\n"
+"	_priv[obj_type] = c_check\n"
 "	-- push function for C API.\n"
 "	reg_table[obj_type] = function(ptr)\n"
 "		local obj = obj_ctype()\n"
@@ -1630,6 +2143,9 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "		return obj\n"
 "	end\n"
 "\n"
+"	-- export check functions for use in other modules.\n"
+"	obj_mt.c_check = c_check\n"
+"	obj_mt.ffi_check = obj_type_ZMQ_Poller_check\n"
 "end\n"
 "\n"
 "\n"
@@ -1638,13 +2154,9 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "local obj_type_ZMQ_Ctx_push\n"
 "\n"
 "do\n"
-"	local obj_mt = _priv.ZMQ_Ctx\n"
-"	local obj_type = obj_mt['.type']\n"
-"	local obj_ctype = ffi.typeof(\"ZMQ_Ctx *\")\n"
-"	_ctypes.ZMQ_Ctx = obj_ctype\n"
-"	_type_names.ZMQ_Ctx = tostring(obj_ctype)\n"
+"	local obj_mt, obj_type, obj_ctype = obj_register_ctype(\"ZMQ_Ctx\", \"ZMQ_Ctx *\")\n"
 "\n"
-"	function obj_type_ZMQ_Ctx_check(ptr)\n", /* ----- CUT ----- */
+"	function obj_type_ZMQ_Ctx_check(ptr)\n"
 "		-- if ptr is nil or is the correct type, then just return it.\n"
 "		if not ptr or ffi.istype(obj_ctype, ptr) then return ptr end\n"
 "		-- check if it is a compatible type.\n"
@@ -1683,15 +2195,15 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	end\n"
 "\n"
 "	-- type checking function for C API.\n"
-"	_priv[obj_type] = function(ptr)\n"
-"		if ffi.istype(obj_ctype, ptr) then return ptr end\n"
-"		return nil\n"
-"	end\n"
+"	_priv[obj_type] = obj_type_ZMQ_Ctx_check\n"
 "	-- push function for C API.\n"
 "	reg_table[obj_type] = function(ptr, flags)\n"
 "		return obj_type_ZMQ_Ctx_push(ffi.cast(obj_ctype,ptr), flags)\n"
 "	end\n"
 "\n"
+"	-- export check functions for use in other modules.\n"
+"	obj_mt.c_check = obj_type_ZMQ_Ctx_check\n"
+"	obj_mt.ffi_check = obj_type_ZMQ_Ctx_check\n"
 "end\n"
 "\n"
 "\n"
@@ -1700,11 +2212,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "local obj_type_ZMQ_StopWatch_push\n"
 "\n"
 "do\n"
-"	local obj_mt = _priv.ZMQ_StopWatch\n"
-"	local obj_type = obj_mt['.type']\n"
-"	local obj_ctype = ffi.typeof(\"ZMQ_StopWatch *\")\n"
-"	_ctypes.ZMQ_StopWatch = obj_ctype\n"
-"	_type_names.ZMQ_StopWatch = tostring(obj_ctype)\n"
+"	local obj_mt, obj_type, obj_ctype = obj_register_ctype(\"ZMQ_StopWatch\", \"ZMQ_StopWatch *\")\n"
 "\n"
 "	function obj_type_ZMQ_StopWatch_check(ptr)\n"
 "		-- if ptr is nil or is the correct type, then just return it.\n"
@@ -1745,17 +2253,23 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "	end\n"
 "\n"
 "	-- type checking function for C API.\n"
-"	_priv[obj_type] = function(ptr)\n"
-"		if ffi.istype(obj_ctype, ptr) then return ptr end\n"
-"		return nil\n"
-"	end\n"
+"	_priv[obj_type] = obj_type_ZMQ_StopWatch_check\n"
 "	-- push function for C API.\n"
 "	reg_table[obj_type] = function(ptr, flags)\n"
 "		return obj_type_ZMQ_StopWatch_push(ffi.cast(obj_ctype,ptr), flags)\n"
 "	end\n"
 "\n"
+"	-- export check functions for use in other modules.\n"
+"	obj_mt.c_check = obj_type_ZMQ_StopWatch_check\n"
+"	obj_mt.ffi_check = obj_type_ZMQ_StopWatch_check\n"
 "end\n"
 "\n"
+"\n"
+"local obj_type_MutableBuffer_check =\n"
+"	obj_get_interface_check(\"MutableBufferIF\", \"Expected object with MutableBuffer interface\")\n"
+"\n"
+"local obj_type_Buffer_check =\n"
+"	obj_get_interface_check(\"BufferIF\", \"Expected object with Buffer interface\")\n"
 "\n"
 "local os_lib_table = {\n"
 "	[\"Windows\"] = \"libzmq\",\n"
@@ -2088,7 +2602,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "function _meth.ZMQ_Socket.send_msg(self, msg2, flags3)\n"
 "  \n"
 "  \n"
-"    flags3 = flags3 or 0\n"
+"  flags3 = flags3 or 0\n"
 "  local rc_zmq_sendmsg1 = 0\n"
 "  rc_zmq_sendmsg1 = C.zmq_sendmsg(self, msg2, flags3)\n"
 "  -- check for error.\n"
@@ -2102,7 +2616,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "function _meth.ZMQ_Socket.send(self, data2, flags3)\n"
 "  \n"
 "  local data_len2 = #data2\n"
-"    flags3 = flags3 or 0\n"
+"  flags3 = flags3 or 0\n", /* ----- CUT ----- */
 "  local rc_simple_zmq_send1 = 0\n"
 "  rc_simple_zmq_send1 = Cmod.simple_zmq_send(self, data2, data_len2, flags3)\n"
 "  -- check for error.\n"
@@ -2116,7 +2630,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "function _meth.ZMQ_Socket.recv_msg(self, msg2, flags3)\n"
 "  \n"
 "  \n"
-"    flags3 = flags3 or 0\n"
+"  flags3 = flags3 or 0\n"
 "  local rc_zmq_recvmsg1 = 0\n"
 "  rc_zmq_recvmsg1 = C.zmq_recvmsg(self, msg2, flags3)\n"
 "  -- check for error.\n"
@@ -2131,7 +2645,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "-- method: recv\n"
 "function _meth.ZMQ_Socket.recv(self, flags2)\n"
 "  \n"
-"    flags2 = flags2 or 0\n"
+"  flags2 = flags2 or 0\n"
 "  local data_len1 = 0\n"
 "  local data1\n"
 "  local err2 = 0\n"
@@ -2236,7 +2750,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "    return nil,error_code__ZMQ_Error__push(rc_lzmq_socket_affinity2)\n"
 "  end\n"
 "  return value1[0]\n"
-"end\n", /* ----- CUT ----- */
+"end\n"
 "end\n"
 "end\n"
 "\n"
@@ -2646,7 +3160,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "function _meth.ZMQ_Socket.recovery_ivl_msec(self)\n"
 "  \n"
 "  local value1 = recovery_ivl_msec_value_tmp\n"
-"  local rc_lzmq_socket_recovery_ivl_msec2 = 0\n"
+"  local rc_lzmq_socket_recovery_ivl_msec2 = 0\n", /* ----- CUT ----- */
 "  rc_lzmq_socket_recovery_ivl_msec2 = Cmod.lzmq_socket_recovery_ivl_msec(self, value1)\n"
 "  if (-1 == rc_lzmq_socket_recovery_ivl_msec2) then\n"
 "    return nil,error_code__ZMQ_Error__push(rc_lzmq_socket_recovery_ivl_msec2)\n"
@@ -2759,7 +3273,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "  \n"
 "  local rc_lzmq_socket_set_sndhwm1 = 0\n"
 "  rc_lzmq_socket_set_sndhwm1 = Cmod.lzmq_socket_set_sndhwm(self, value2)\n"
-"  -- check for error.\n", /* ----- CUT ----- */
+"  -- check for error.\n"
 "  if (-1 == rc_lzmq_socket_set_sndhwm1) then\n"
 "    return nil, error_code__ZMQ_Error__push(rc_lzmq_socket_set_sndhwm1)\n"
 "  end\n"
@@ -2935,7 +3449,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "-- Start \"ZMQ_Poller\" FFI interface\n"
 "-- method: new\n"
 "function _pub.ZMQ_Poller.new(length1)\n"
-"    length1 = length1 or 10\n"
+"  length1 = length1 or 10\n"
 "  local self = ffi.new(\"ZMQ_Poller\")\n"
 "  Cmod.poller_init(self, length1)\n"
 "  return obj_type_ZMQ_Poller_push(self)\n"
@@ -3134,7 +3648,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "\n"
 "-- method: init\n"
 "function _M.init(io_threads1)\n"
-"    io_threads1 = io_threads1 or 1\n"
+"  io_threads1 = io_threads1 or 1\n"
 "  local rc_zmq_init_flags1 = OBJ_UDATA_FLAG_OWN\n"
 "  local rc_zmq_init1\n"
 "  rc_zmq_init1 = C.zmq_init(io_threads1)\n"
@@ -4025,8 +4539,9 @@ static int ZErrors__description__meth(lua_State *L) {
 
 /* method: __index */
 static int ZErrors____index__meth(lua_State *L) {
-  int err2 = luaL_checkinteger(L,2);
+  int err2;
   const char * msg1 = NULL;
+  err2 = luaL_checkinteger(L,2);
 	switch(err2) {
 	case EAGAIN:
 		msg1 = "timeout";
@@ -4098,10 +4613,11 @@ static int zmq_msg_t__init__meth(lua_State *L) {
 
 /* method: init_size */
 static int zmq_msg_t__init_size__meth(lua_State *L) {
-  size_t size1 = luaL_checkinteger(L,1);
+  size_t size1;
   zmq_msg_t this1_store;
   zmq_msg_t * this1 = &(this1_store);
   ZMQ_Error rc_zmq_msg_init_size2 = 0;
+  size1 = luaL_checkinteger(L,1);
   rc_zmq_msg_init_size2 = zmq_msg_init_size(this1, size1);
   if(!(-1 == rc_zmq_msg_init_size2)) {
     obj_type_zmq_msg_t_push(L, this1);
@@ -4115,10 +4631,11 @@ static int zmq_msg_t__init_size__meth(lua_State *L) {
 /* method: init_data */
 static int zmq_msg_t__init_data__meth(lua_State *L) {
   size_t data_len1;
-  const char * data1 = luaL_checklstring(L,1,&(data_len1));
+  const char * data1;
   zmq_msg_t this1_store;
   zmq_msg_t * this1 = &(this1_store);
   ZMQ_Error err2 = 0;
+  data1 = luaL_checklstring(L,1,&(data_len1));
   err2 = zmq_msg_init_size(this1, data_len1);
 	if(0 == err2) {
 		/* fill message */
@@ -4136,8 +4653,9 @@ static int zmq_msg_t__init_data__meth(lua_State *L) {
 
 /* method: _priv */
 static int zmq_msg_t__delete__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_delete(L,1);
+  zmq_msg_t * this1;
   ZMQ_Error rc_zmq_msg_close1 = 0;
+  this1 = obj_type_zmq_msg_t_delete(L,1);
   rc_zmq_msg_close1 = zmq_msg_close(this1);
   /* check for error. */
   if((-1 == rc_zmq_msg_close1)) {
@@ -4152,8 +4670,9 @@ static int zmq_msg_t__delete__meth(lua_State *L) {
 
 /* method: close */
 static int zmq_msg_t__close__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
+  zmq_msg_t * this1;
   ZMQ_Error rc_zmq_msg_close1 = 0;
+  this1 = obj_type_zmq_msg_t_check(L,1);
   rc_zmq_msg_close1 = zmq_msg_close(this1);
   /* check for error. */
   if((-1 == rc_zmq_msg_close1)) {
@@ -4168,9 +4687,11 @@ static int zmq_msg_t__close__meth(lua_State *L) {
 
 /* method: move */
 static int zmq_msg_t__move__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
-  zmq_msg_t * src2 = obj_type_zmq_msg_t_check(L,2);
+  zmq_msg_t * this1;
+  zmq_msg_t * src2;
   ZMQ_Error rc_zmq_msg_move1 = 0;
+  this1 = obj_type_zmq_msg_t_check(L,1);
+  src2 = obj_type_zmq_msg_t_check(L,2);
   rc_zmq_msg_move1 = zmq_msg_move(this1, src2);
   /* check for error. */
   if((-1 == rc_zmq_msg_move1)) {
@@ -4185,9 +4706,11 @@ static int zmq_msg_t__move__meth(lua_State *L) {
 
 /* method: copy */
 static int zmq_msg_t__copy__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
-  zmq_msg_t * src2 = obj_type_zmq_msg_t_check(L,2);
+  zmq_msg_t * this1;
+  zmq_msg_t * src2;
   ZMQ_Error rc_zmq_msg_copy1 = 0;
+  this1 = obj_type_zmq_msg_t_check(L,1);
+  src2 = obj_type_zmq_msg_t_check(L,2);
   rc_zmq_msg_copy1 = zmq_msg_copy(this1, src2);
   /* check for error. */
   if((-1 == rc_zmq_msg_copy1)) {
@@ -4202,10 +4725,12 @@ static int zmq_msg_t__copy__meth(lua_State *L) {
 
 /* method: set_data */
 static int zmq_msg_t__set_data__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
+  zmq_msg_t * this1;
   size_t data_len2;
-  const char * data2 = luaL_checklstring(L,2,&(data_len2));
+  const char * data2;
   ZMQ_Error err1 = 0;
+  this1 = obj_type_zmq_msg_t_check(L,1);
+  data2 = luaL_checklstring(L,2,&(data_len2));
 	/* check message data size. */
 	if(zmq_msg_size(this1) != data_len2) {
 		/* need to resize message. */
@@ -4231,8 +4756,9 @@ static int zmq_msg_t__set_data__meth(lua_State *L) {
 
 /* method: data */
 static int zmq_msg_t__data__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
+  zmq_msg_t * this1;
   void * rc_zmq_msg_data1 = NULL;
+  this1 = obj_type_zmq_msg_t_check(L,1);
   rc_zmq_msg_data1 = zmq_msg_data(this1);
   lua_pushlightuserdata(L, rc_zmq_msg_data1);
   return 1;
@@ -4240,9 +4766,11 @@ static int zmq_msg_t__data__meth(lua_State *L) {
 
 /* method: set_size */
 static int zmq_msg_t__set_size__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
-  size_t size2 = luaL_checkinteger(L,2);
+  zmq_msg_t * this1;
+  size_t size2;
   ZMQ_Error err1 = 0;
+  this1 = obj_type_zmq_msg_t_check(L,1);
+  size2 = luaL_checkinteger(L,2);
 	/* check message data size. */
 	if(zmq_msg_size(this1) != size2) {
 		/* need to resize message. */
@@ -4266,8 +4794,9 @@ static int zmq_msg_t__set_size__meth(lua_State *L) {
 
 /* method: size */
 static int zmq_msg_t__size__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
+  zmq_msg_t * this1;
   size_t size1 = 0;
+  this1 = obj_type_zmq_msg_t_check(L,1);
   size1 = zmq_msg_size(this1);
   lua_pushinteger(L, size1);
   return 1;
@@ -4275,9 +4804,10 @@ static int zmq_msg_t__size__meth(lua_State *L) {
 
 /* method: __tostring */
 static int zmq_msg_t____tostring__meth(lua_State *L) {
-  zmq_msg_t * this1 = obj_type_zmq_msg_t_check(L,1);
+  zmq_msg_t * this1;
   size_t data_len1 = 0;
   const char * data1 = NULL;
+  this1 = obj_type_zmq_msg_t_check(L,1);
 	data1 = zmq_msg_data(this1);
 	data_len1 = zmq_msg_size(this1);
 
@@ -4288,8 +4818,9 @@ static int zmq_msg_t____tostring__meth(lua_State *L) {
 /* method: close */
 static int ZMQ_Socket__close__meth(lua_State *L) {
   int this_flags1 = 0;
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_delete(L,1,&(this_flags1));
+  ZMQ_Socket * this1;
   ZMQ_Error rc_zmq_close1 = 0;
+  this1 = obj_type_ZMQ_Socket_delete(L,1,&(this_flags1));
   if(!(this_flags1 & OBJ_UDATA_FLAG_OWN)) { return 0; }
   rc_zmq_close1 = zmq_close(this1);
   /* check for error. */
@@ -4305,10 +4836,12 @@ static int ZMQ_Socket__close__meth(lua_State *L) {
 
 /* method: bind */
 static int ZMQ_Socket__bind__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t addr_len2;
-  const char * addr2 = luaL_checklstring(L,2,&(addr_len2));
+  const char * addr2;
   ZMQ_Error rc_zmq_bind1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  addr2 = luaL_checklstring(L,2,&(addr_len2));
   rc_zmq_bind1 = zmq_bind(this1, addr2);
   /* check for error. */
   if((-1 == rc_zmq_bind1)) {
@@ -4323,10 +4856,12 @@ static int ZMQ_Socket__bind__meth(lua_State *L) {
 
 /* method: connect */
 static int ZMQ_Socket__connect__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t addr_len2;
-  const char * addr2 = luaL_checklstring(L,2,&(addr_len2));
+  const char * addr2;
   ZMQ_Error rc_zmq_connect1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  addr2 = luaL_checklstring(L,2,&(addr_len2));
   rc_zmq_connect1 = zmq_connect(this1, addr2);
   /* check for error. */
   if((-1 == rc_zmq_connect1)) {
@@ -4341,13 +4876,15 @@ static int ZMQ_Socket__connect__meth(lua_State *L) {
 
 /* method: setopt */
 static int ZMQ_Socket__setopt__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  uint32_t opt2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  uint32_t opt2;
   ZMQ_Error err1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  opt2 = luaL_checkinteger(L,2);
 	size_t val_len;
 	const void *val;
 
-#if VERSION_2_1
+#if defined(VERSION_2_1) || defined(VERSION_3_0)
 	socket_t fd_val;
 #endif
 	int int_val;
@@ -4374,7 +4911,7 @@ static int ZMQ_Socket__setopt__meth(lua_State *L) {
 	}
 
 	switch(opt_types[opt2]) {
-#if VERSION_2_1
+#if defined(VERSION_2_1) || defined(VERSION_3_0)
 	case OPT_TYPE_FD:
 		fd_val = luaL_checklong(L, 3);
 		val = &fd_val;
@@ -4425,12 +4962,14 @@ finished:
 
 /* method: getopt */
 static int ZMQ_Socket__getopt__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  uint32_t opt2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  uint32_t opt2;
   ZMQ_Error err2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  opt2 = luaL_checkinteger(L,2);
 	size_t val_len;
 
-#if VERSION_2_1
+#if defined(VERSION_2_1) || defined(VERSION_3_0)
 	socket_t fd_val;
 #endif
 	int int_val;
@@ -4447,7 +4986,7 @@ static int ZMQ_Socket__getopt__meth(lua_State *L) {
 	}
 
 	switch(opt_types[opt2]) {
-#if VERSION_2_1
+#if defined(VERSION_2_1) || defined(VERSION_3_0)
 	case OPT_TYPE_FD:
 		val_len = sizeof(fd_val);
 		err2 = zmq_getsockopt(this1, opt2, &fd_val, &val_len);
@@ -4511,10 +5050,13 @@ static int ZMQ_Socket__getopt__meth(lua_State *L) {
 
 /* method: send_msg */
 static int ZMQ_Socket__send_msg__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  zmq_msg_t * msg2 = obj_type_zmq_msg_t_check(L,2);
-  int flags3 = luaL_optinteger(L,3,0);
+  ZMQ_Socket * this1;
+  zmq_msg_t * msg2;
+  int flags3;
   ZMQ_Error rc_zmq_sendmsg1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  msg2 = obj_type_zmq_msg_t_check(L,2);
+  flags3 = luaL_optinteger(L,3,0);
   rc_zmq_sendmsg1 = zmq_sendmsg(this1, msg2, flags3);
   /* check for error. */
   if((-1 == rc_zmq_sendmsg1)) {
@@ -4529,11 +5071,14 @@ static int ZMQ_Socket__send_msg__meth(lua_State *L) {
 
 /* method: send */
 static int ZMQ_Socket__send__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t data_len2;
-  const char * data2 = luaL_checklstring(L,2,&(data_len2));
-  int flags3 = luaL_optinteger(L,3,0);
+  const char * data2;
+  int flags3;
   ZMQ_Error rc_simple_zmq_send1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  data2 = luaL_checklstring(L,2,&(data_len2));
+  flags3 = luaL_optinteger(L,3,0);
   rc_simple_zmq_send1 = simple_zmq_send(this1, data2, data_len2, flags3);
   /* check for error. */
   if((-1 == rc_simple_zmq_send1)) {
@@ -4548,10 +5093,13 @@ static int ZMQ_Socket__send__meth(lua_State *L) {
 
 /* method: recv_msg */
 static int ZMQ_Socket__recv_msg__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  zmq_msg_t * msg2 = obj_type_zmq_msg_t_check(L,2);
-  int flags3 = luaL_optinteger(L,3,0);
+  ZMQ_Socket * this1;
+  zmq_msg_t * msg2;
+  int flags3;
   ZMQ_Error rc_zmq_recvmsg1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  msg2 = obj_type_zmq_msg_t_check(L,2);
+  flags3 = luaL_optinteger(L,3,0);
   rc_zmq_recvmsg1 = zmq_recvmsg(this1, msg2, flags3);
   /* check for error. */
   if((-1 == rc_zmq_recvmsg1)) {
@@ -4566,11 +5114,13 @@ static int ZMQ_Socket__recv_msg__meth(lua_State *L) {
 
 /* method: recv */
 static int ZMQ_Socket__recv__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int flags2 = luaL_optinteger(L,2,0);
+  ZMQ_Socket * this1;
+  int flags2;
   size_t data_len1 = 0;
   const char * data1 = NULL;
   ZMQ_Error err2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  flags2 = luaL_optinteger(L,2,0);
 	zmq_msg_t msg;
 	/* initialize message */
 	err2 = zmq_msg_init(&msg);
@@ -4598,9 +5148,10 @@ static int ZMQ_Socket__recv__meth(lua_State *L) {
 /* method: hwm */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__hwm__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_hwm2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_hwm2 = lzmq_socket_hwm(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_hwm2)) {
     lua_pushinteger(L, value1);
@@ -4615,9 +5166,11 @@ static int ZMQ_Socket__hwm__meth(lua_State *L) {
 /* method: set_hwm */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_hwm__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_hwm1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_hwm1 = lzmq_socket_set_hwm(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_hwm1)) {
@@ -4634,9 +5187,10 @@ static int ZMQ_Socket__set_hwm__meth(lua_State *L) {
 /* method: swap */
 #if (VERSION_2_0)
 static int ZMQ_Socket__swap__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_swap2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_swap2 = lzmq_socket_swap(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_swap2)) {
     lua_pushinteger(L, value1);
@@ -4651,9 +5205,11 @@ static int ZMQ_Socket__swap__meth(lua_State *L) {
 /* method: set_swap */
 #if (VERSION_2_0)
 static int ZMQ_Socket__set_swap__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_swap1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_swap1 = lzmq_socket_set_swap(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_swap1)) {
@@ -4670,9 +5226,10 @@ static int ZMQ_Socket__set_swap__meth(lua_State *L) {
 /* method: affinity */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__affinity__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   uint64_t value1 = 0;
   ZMQ_Error rc_lzmq_socket_affinity2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_affinity2 = lzmq_socket_affinity(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_affinity2)) {
     lua_pushinteger(L, value1);
@@ -4687,9 +5244,11 @@ static int ZMQ_Socket__affinity__meth(lua_State *L) {
 /* method: set_affinity */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_affinity__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  uint64_t value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  uint64_t value2;
   ZMQ_Error rc_lzmq_socket_set_affinity1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_affinity1 = lzmq_socket_set_affinity(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_affinity1)) {
@@ -4706,10 +5265,11 @@ static int ZMQ_Socket__set_affinity__meth(lua_State *L) {
 /* method: identity */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__identity__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t value_len1 = 0;
   char * value1 = NULL;
   ZMQ_Error rc_lzmq_socket_identity2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_identity2 = lzmq_socket_identity(this1, value1, &(value_len1));
   if(!(-1 == rc_lzmq_socket_identity2)) {
     if(value1 == NULL) lua_pushnil(L);  else lua_pushlstring(L, value1,value_len1);
@@ -4724,10 +5284,12 @@ static int ZMQ_Socket__identity__meth(lua_State *L) {
 /* method: set_identity */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_identity__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t value_len2;
-  const char * value2 = luaL_checklstring(L,2,&(value_len2));
+  const char * value2;
   ZMQ_Error rc_lzmq_socket_set_identity1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checklstring(L,2,&(value_len2));
   rc_lzmq_socket_set_identity1 = lzmq_socket_set_identity(this1, value2, value_len2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_identity1)) {
@@ -4744,10 +5306,12 @@ static int ZMQ_Socket__set_identity__meth(lua_State *L) {
 /* method: subscribe */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__subscribe__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t value_len2;
-  const char * value2 = luaL_checklstring(L,2,&(value_len2));
+  const char * value2;
   ZMQ_Error rc_lzmq_socket_subscribe1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checklstring(L,2,&(value_len2));
   rc_lzmq_socket_subscribe1 = lzmq_socket_subscribe(this1, value2, value_len2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_subscribe1)) {
@@ -4764,10 +5328,12 @@ static int ZMQ_Socket__subscribe__meth(lua_State *L) {
 /* method: unsubscribe */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__unsubscribe__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   size_t value_len2;
-  const char * value2 = luaL_checklstring(L,2,&(value_len2));
+  const char * value2;
   ZMQ_Error rc_lzmq_socket_unsubscribe1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checklstring(L,2,&(value_len2));
   rc_lzmq_socket_unsubscribe1 = lzmq_socket_unsubscribe(this1, value2, value_len2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_unsubscribe1)) {
@@ -4784,9 +5350,10 @@ static int ZMQ_Socket__unsubscribe__meth(lua_State *L) {
 /* method: rate */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__rate__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_rate2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_rate2 = lzmq_socket_rate(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_rate2)) {
     lua_pushinteger(L, value1);
@@ -4801,9 +5368,11 @@ static int ZMQ_Socket__rate__meth(lua_State *L) {
 /* method: set_rate */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_rate__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_rate1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_rate1 = lzmq_socket_set_rate(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_rate1)) {
@@ -4820,9 +5389,10 @@ static int ZMQ_Socket__set_rate__meth(lua_State *L) {
 /* method: recovery_ivl */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__recovery_ivl__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_recovery_ivl2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_recovery_ivl2 = lzmq_socket_recovery_ivl(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_recovery_ivl2)) {
     lua_pushinteger(L, value1);
@@ -4837,9 +5407,11 @@ static int ZMQ_Socket__recovery_ivl__meth(lua_State *L) {
 /* method: set_recovery_ivl */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_recovery_ivl__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_recovery_ivl1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_recovery_ivl1 = lzmq_socket_set_recovery_ivl(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_recovery_ivl1)) {
@@ -4856,9 +5428,10 @@ static int ZMQ_Socket__set_recovery_ivl__meth(lua_State *L) {
 /* method: mcast_loop */
 #if (VERSION_2_0)
 static int ZMQ_Socket__mcast_loop__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_mcast_loop2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_mcast_loop2 = lzmq_socket_mcast_loop(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_mcast_loop2)) {
     lua_pushinteger(L, value1);
@@ -4873,9 +5446,11 @@ static int ZMQ_Socket__mcast_loop__meth(lua_State *L) {
 /* method: set_mcast_loop */
 #if (VERSION_2_0)
 static int ZMQ_Socket__set_mcast_loop__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_mcast_loop1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_mcast_loop1 = lzmq_socket_set_mcast_loop(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_mcast_loop1)) {
@@ -4892,9 +5467,10 @@ static int ZMQ_Socket__set_mcast_loop__meth(lua_State *L) {
 /* method: sndbuf */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__sndbuf__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_sndbuf2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_sndbuf2 = lzmq_socket_sndbuf(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_sndbuf2)) {
     lua_pushinteger(L, value1);
@@ -4909,9 +5485,11 @@ static int ZMQ_Socket__sndbuf__meth(lua_State *L) {
 /* method: set_sndbuf */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_sndbuf__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_sndbuf1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_sndbuf1 = lzmq_socket_set_sndbuf(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_sndbuf1)) {
@@ -4928,9 +5506,10 @@ static int ZMQ_Socket__set_sndbuf__meth(lua_State *L) {
 /* method: rcvbuf */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__rcvbuf__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_rcvbuf2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_rcvbuf2 = lzmq_socket_rcvbuf(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_rcvbuf2)) {
     lua_pushinteger(L, value1);
@@ -4945,9 +5524,11 @@ static int ZMQ_Socket__rcvbuf__meth(lua_State *L) {
 /* method: set_rcvbuf */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__set_rcvbuf__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_rcvbuf1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_rcvbuf1 = lzmq_socket_set_rcvbuf(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_rcvbuf1)) {
@@ -4964,9 +5545,10 @@ static int ZMQ_Socket__set_rcvbuf__meth(lua_State *L) {
 /* method: rcvmore */
 #if (VERSION_2_0|VERSION_3_0)
 static int ZMQ_Socket__rcvmore__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_rcvmore2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_rcvmore2 = lzmq_socket_rcvmore(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_rcvmore2)) {
     lua_pushinteger(L, value1);
@@ -4981,9 +5563,10 @@ static int ZMQ_Socket__rcvmore__meth(lua_State *L) {
 /* method: fd */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__fd__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_fd2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_fd2 = lzmq_socket_fd(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_fd2)) {
     lua_pushinteger(L, value1);
@@ -4998,9 +5581,10 @@ static int ZMQ_Socket__fd__meth(lua_State *L) {
 /* method: events */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__events__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_events2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_events2 = lzmq_socket_events(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_events2)) {
     lua_pushinteger(L, value1);
@@ -5015,9 +5599,10 @@ static int ZMQ_Socket__events__meth(lua_State *L) {
 /* method: type */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__type__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_type2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_type2 = lzmq_socket_type(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_type2)) {
     lua_pushinteger(L, value1);
@@ -5032,9 +5617,10 @@ static int ZMQ_Socket__type__meth(lua_State *L) {
 /* method: linger */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__linger__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_linger2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_linger2 = lzmq_socket_linger(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_linger2)) {
     lua_pushinteger(L, value1);
@@ -5049,9 +5635,11 @@ static int ZMQ_Socket__linger__meth(lua_State *L) {
 /* method: set_linger */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__set_linger__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_linger1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_linger1 = lzmq_socket_set_linger(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_linger1)) {
@@ -5068,9 +5656,10 @@ static int ZMQ_Socket__set_linger__meth(lua_State *L) {
 /* method: reconnect_ivl */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__reconnect_ivl__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_reconnect_ivl2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_reconnect_ivl2 = lzmq_socket_reconnect_ivl(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_reconnect_ivl2)) {
     lua_pushinteger(L, value1);
@@ -5085,9 +5674,11 @@ static int ZMQ_Socket__reconnect_ivl__meth(lua_State *L) {
 /* method: set_reconnect_ivl */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__set_reconnect_ivl__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_reconnect_ivl1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_reconnect_ivl1 = lzmq_socket_set_reconnect_ivl(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_reconnect_ivl1)) {
@@ -5104,9 +5695,10 @@ static int ZMQ_Socket__set_reconnect_ivl__meth(lua_State *L) {
 /* method: backlog */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__backlog__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_backlog2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_backlog2 = lzmq_socket_backlog(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_backlog2)) {
     lua_pushinteger(L, value1);
@@ -5121,9 +5713,11 @@ static int ZMQ_Socket__backlog__meth(lua_State *L) {
 /* method: set_backlog */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__set_backlog__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_backlog1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_backlog1 = lzmq_socket_set_backlog(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_backlog1)) {
@@ -5140,9 +5734,10 @@ static int ZMQ_Socket__set_backlog__meth(lua_State *L) {
 /* method: recovery_ivl_msec */
 #if (VERSION_2_1)
 static int ZMQ_Socket__recovery_ivl_msec__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int64_t value1 = 0;
   ZMQ_Error rc_lzmq_socket_recovery_ivl_msec2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_recovery_ivl_msec2 = lzmq_socket_recovery_ivl_msec(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_recovery_ivl_msec2)) {
     lua_pushinteger(L, value1);
@@ -5157,9 +5752,11 @@ static int ZMQ_Socket__recovery_ivl_msec__meth(lua_State *L) {
 /* method: set_recovery_ivl_msec */
 #if (VERSION_2_1)
 static int ZMQ_Socket__set_recovery_ivl_msec__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int64_t value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int64_t value2;
   ZMQ_Error rc_lzmq_socket_set_recovery_ivl_msec1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_recovery_ivl_msec1 = lzmq_socket_set_recovery_ivl_msec(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_recovery_ivl_msec1)) {
@@ -5176,9 +5773,10 @@ static int ZMQ_Socket__set_recovery_ivl_msec__meth(lua_State *L) {
 /* method: reconnect_ivl_max */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__reconnect_ivl_max__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_reconnect_ivl_max2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_reconnect_ivl_max2 = lzmq_socket_reconnect_ivl_max(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_reconnect_ivl_max2)) {
     lua_pushinteger(L, value1);
@@ -5193,9 +5791,11 @@ static int ZMQ_Socket__reconnect_ivl_max__meth(lua_State *L) {
 /* method: set_reconnect_ivl_max */
 #if (VERSION_2_1|VERSION_3_0)
 static int ZMQ_Socket__set_reconnect_ivl_max__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_reconnect_ivl_max1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_reconnect_ivl_max1 = lzmq_socket_set_reconnect_ivl_max(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_reconnect_ivl_max1)) {
@@ -5212,9 +5812,10 @@ static int ZMQ_Socket__set_reconnect_ivl_max__meth(lua_State *L) {
 /* method: maxmsgsize */
 #if (VERSION_3_0)
 static int ZMQ_Socket__maxmsgsize__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int64_t value1 = 0;
   ZMQ_Error rc_lzmq_socket_maxmsgsize2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_maxmsgsize2 = lzmq_socket_maxmsgsize(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_maxmsgsize2)) {
     lua_pushinteger(L, value1);
@@ -5229,9 +5830,11 @@ static int ZMQ_Socket__maxmsgsize__meth(lua_State *L) {
 /* method: set_maxmsgsize */
 #if (VERSION_3_0)
 static int ZMQ_Socket__set_maxmsgsize__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int64_t value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int64_t value2;
   ZMQ_Error rc_lzmq_socket_set_maxmsgsize1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_maxmsgsize1 = lzmq_socket_set_maxmsgsize(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_maxmsgsize1)) {
@@ -5248,9 +5851,10 @@ static int ZMQ_Socket__set_maxmsgsize__meth(lua_State *L) {
 /* method: sndhwm */
 #if (VERSION_3_0)
 static int ZMQ_Socket__sndhwm__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_sndhwm2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_sndhwm2 = lzmq_socket_sndhwm(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_sndhwm2)) {
     lua_pushinteger(L, value1);
@@ -5265,9 +5869,11 @@ static int ZMQ_Socket__sndhwm__meth(lua_State *L) {
 /* method: set_sndhwm */
 #if (VERSION_3_0)
 static int ZMQ_Socket__set_sndhwm__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_sndhwm1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_sndhwm1 = lzmq_socket_set_sndhwm(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_sndhwm1)) {
@@ -5284,9 +5890,10 @@ static int ZMQ_Socket__set_sndhwm__meth(lua_State *L) {
 /* method: rcvhwm */
 #if (VERSION_3_0)
 static int ZMQ_Socket__rcvhwm__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_rcvhwm2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_rcvhwm2 = lzmq_socket_rcvhwm(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_rcvhwm2)) {
     lua_pushinteger(L, value1);
@@ -5301,9 +5908,11 @@ static int ZMQ_Socket__rcvhwm__meth(lua_State *L) {
 /* method: set_rcvhwm */
 #if (VERSION_3_0)
 static int ZMQ_Socket__set_rcvhwm__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_rcvhwm1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_rcvhwm1 = lzmq_socket_set_rcvhwm(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_rcvhwm1)) {
@@ -5320,9 +5929,10 @@ static int ZMQ_Socket__set_rcvhwm__meth(lua_State *L) {
 /* method: multicast_hops */
 #if (VERSION_3_0)
 static int ZMQ_Socket__multicast_hops__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_multicast_hops2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_multicast_hops2 = lzmq_socket_multicast_hops(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_multicast_hops2)) {
     lua_pushinteger(L, value1);
@@ -5337,9 +5947,11 @@ static int ZMQ_Socket__multicast_hops__meth(lua_State *L) {
 /* method: set_multicast_hops */
 #if (VERSION_3_0)
 static int ZMQ_Socket__set_multicast_hops__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_multicast_hops1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_multicast_hops1 = lzmq_socket_set_multicast_hops(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_multicast_hops1)) {
@@ -5356,9 +5968,10 @@ static int ZMQ_Socket__set_multicast_hops__meth(lua_State *L) {
 /* method: rcvtimeo */
 #if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__rcvtimeo__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_rcvtimeo2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_rcvtimeo2 = lzmq_socket_rcvtimeo(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_rcvtimeo2)) {
     lua_pushinteger(L, value1);
@@ -5373,9 +5986,11 @@ static int ZMQ_Socket__rcvtimeo__meth(lua_State *L) {
 /* method: set_rcvtimeo */
 #if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__set_rcvtimeo__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_rcvtimeo1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_rcvtimeo1 = lzmq_socket_set_rcvtimeo(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_rcvtimeo1)) {
@@ -5392,9 +6007,10 @@ static int ZMQ_Socket__set_rcvtimeo__meth(lua_State *L) {
 /* method: sndtimeo */
 #if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__sndtimeo__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_sndtimeo2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_sndtimeo2 = lzmq_socket_sndtimeo(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_sndtimeo2)) {
     lua_pushinteger(L, value1);
@@ -5409,9 +6025,11 @@ static int ZMQ_Socket__sndtimeo__meth(lua_State *L) {
 /* method: set_sndtimeo */
 #if (VERSION_2_2|VERSION_3_0)
 static int ZMQ_Socket__set_sndtimeo__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_sndtimeo1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_sndtimeo1 = lzmq_socket_set_sndtimeo(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_sndtimeo1)) {
@@ -5428,9 +6046,10 @@ static int ZMQ_Socket__set_sndtimeo__meth(lua_State *L) {
 /* method: ipv4only */
 #if (VERSION_3_0)
 static int ZMQ_Socket__ipv4only__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
+  ZMQ_Socket * this1;
   int value1 = 0;
   ZMQ_Error rc_lzmq_socket_ipv4only2 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
   rc_lzmq_socket_ipv4only2 = lzmq_socket_ipv4only(this1, &(value1));
   if(!(-1 == rc_lzmq_socket_ipv4only2)) {
     lua_pushinteger(L, value1);
@@ -5445,9 +6064,11 @@ static int ZMQ_Socket__ipv4only__meth(lua_State *L) {
 /* method: set_ipv4only */
 #if (VERSION_3_0)
 static int ZMQ_Socket__set_ipv4only__meth(lua_State *L) {
-  ZMQ_Socket * this1 = obj_type_ZMQ_Socket_check(L,1);
-  int value2 = luaL_checkinteger(L,2);
+  ZMQ_Socket * this1;
+  int value2;
   ZMQ_Error rc_lzmq_socket_set_ipv4only1 = 0;
+  this1 = obj_type_ZMQ_Socket_check(L,1);
+  value2 = luaL_checkinteger(L,2);
   rc_lzmq_socket_set_ipv4only1 = lzmq_socket_set_ipv4only(this1, value2);
   /* check for error. */
   if((-1 == rc_lzmq_socket_set_ipv4only1)) {
@@ -5463,9 +6084,10 @@ static int ZMQ_Socket__set_ipv4only__meth(lua_State *L) {
 
 /* method: new */
 static int ZMQ_Poller__new__meth(lua_State *L) {
-  unsigned int length1 = luaL_optinteger(L,1,10);
+  unsigned int length1;
   ZMQ_Poller this1_store;
   ZMQ_Poller * this1 = &(this1_store);
+  length1 = luaL_optinteger(L,1,10);
   poller_init(this1, length1);
   obj_type_ZMQ_Poller_push(L, this1);
   return 1;
@@ -5473,20 +6095,23 @@ static int ZMQ_Poller__new__meth(lua_State *L) {
 
 /* method: close */
 static int ZMQ_Poller__close__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_delete(L,1);
+  ZMQ_Poller * this1;
+  this1 = obj_type_ZMQ_Poller_delete(L,1);
   poller_cleanup(this1);
   return 0;
 }
 
 /* method: add */
 static int ZMQ_Poller__add__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
-  short events3 = luaL_checkinteger(L,3);
+  ZMQ_Poller * this1;
+  short events3;
   int idx1 = 0;
 	zmq_pollitem_t *item;
 	ZMQ_Socket *sock = NULL;
 	socket_t fd = 0;
 
+  this1 = obj_type_ZMQ_Poller_check(L,1);
+  events3 = luaL_checkinteger(L,3);
 	if(lua_isuserdata(L, 2)) {
 		sock = obj_type_ZMQ_Socket_check(L, 2);
 	} else if(lua_isnumber(L, 2)) {
@@ -5506,13 +6131,15 @@ static int ZMQ_Poller__add__meth(lua_State *L) {
 
 /* method: modify */
 static int ZMQ_Poller__modify__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
-  short events3 = luaL_checkinteger(L,3);
+  ZMQ_Poller * this1;
+  short events3;
   int idx1 = 0;
 	zmq_pollitem_t *item;
 	ZMQ_Socket *sock = NULL;
 	socket_t fd = 0;
 
+  this1 = obj_type_ZMQ_Poller_check(L,1);
+  events3 = luaL_checkinteger(L,3);
 	if(lua_isuserdata(L, 2)) {
 		sock = obj_type_ZMQ_Socket_check(L, 2);
 		/* find sock in items list. */
@@ -5544,11 +6171,12 @@ static int ZMQ_Poller__modify__meth(lua_State *L) {
 
 /* method: remove */
 static int ZMQ_Poller__remove__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
+  ZMQ_Poller * this1;
   int idx1 = 0;
 	ZMQ_Socket *sock;
 	socket_t fd;
 
+  this1 = obj_type_ZMQ_Poller_check(L,1);
 	/* ZMQ_Socket or fd */
 	if(lua_isuserdata(L, 2)) {
 		sock = obj_type_ZMQ_Socket_check(L, 2);
@@ -5572,10 +6200,12 @@ static int ZMQ_Poller__remove__meth(lua_State *L) {
 
 /* method: poll */
 static int ZMQ_Poller__poll__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
-  long timeout2 = luaL_checkinteger(L,2);
+  ZMQ_Poller * this1;
+  long timeout2;
   int count1 = 0;
   ZMQ_Error err2 = 0;
+  this1 = obj_type_ZMQ_Poller_check(L,1);
+  timeout2 = luaL_checkinteger(L,2);
   err2 = poller_poll(this1, timeout2);
 	if(err2 > 0) {
 		this1->next = 0;
@@ -5596,9 +6226,10 @@ static int ZMQ_Poller__poll__meth(lua_State *L) {
 
 /* method: next_revents_idx */
 static int ZMQ_Poller__next_revents_idx__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
+  ZMQ_Poller * this1;
   int idx1 = 0;
   int revents2 = 0;
+  this1 = obj_type_ZMQ_Poller_check(L,1);
   idx1 = poller_next_revents(this1, &(revents2));
   lua_pushinteger(L, idx1);
   lua_pushinteger(L, revents2);
@@ -5607,8 +6238,9 @@ static int ZMQ_Poller__next_revents_idx__meth(lua_State *L) {
 
 /* method: count */
 static int ZMQ_Poller__count__meth(lua_State *L) {
-  ZMQ_Poller * this1 = obj_type_ZMQ_Poller_check(L,1);
+  ZMQ_Poller * this1;
   int count1 = 0;
+  this1 = obj_type_ZMQ_Poller_check(L,1);
 	count1 = this1->count;
 
   lua_pushinteger(L, count1);
@@ -5618,8 +6250,9 @@ static int ZMQ_Poller__count__meth(lua_State *L) {
 /* method: term */
 static int ZMQ_Ctx__term__meth(lua_State *L) {
   int this_flags1 = 0;
-  ZMQ_Ctx * this1 = obj_type_ZMQ_Ctx_delete(L,1,&(this_flags1));
+  ZMQ_Ctx * this1;
   ZMQ_Error rc_zmq_term1 = 0;
+  this1 = obj_type_ZMQ_Ctx_delete(L,1,&(this_flags1));
   if(!(this_flags1 & OBJ_UDATA_FLAG_OWN)) { return 0; }
   rc_zmq_term1 = zmq_term(this1);
   /* check for error. */
@@ -5635,8 +6268,9 @@ static int ZMQ_Ctx__term__meth(lua_State *L) {
 
 /* method: lightuserdata */
 static int ZMQ_Ctx__lightuserdata__meth(lua_State *L) {
-  ZMQ_Ctx * this1 = obj_type_ZMQ_Ctx_check(L,1);
+  ZMQ_Ctx * this1;
   void * ptr1 = NULL;
+  this1 = obj_type_ZMQ_Ctx_check(L,1);
 	ptr1 = this1;
 
   lua_pushlightuserdata(L, ptr1);
@@ -5645,10 +6279,12 @@ static int ZMQ_Ctx__lightuserdata__meth(lua_State *L) {
 
 /* method: socket */
 static int ZMQ_Ctx__socket__meth(lua_State *L) {
-  ZMQ_Ctx * this1 = obj_type_ZMQ_Ctx_check(L,1);
-  int type2 = luaL_checkinteger(L,2);
+  ZMQ_Ctx * this1;
+  int type2;
   int rc_zmq_socket_flags1 = OBJ_UDATA_FLAG_OWN;
   ZMQ_Socket * rc_zmq_socket1;
+  this1 = obj_type_ZMQ_Ctx_check(L,1);
+  type2 = luaL_checkinteger(L,2);
   rc_zmq_socket1 = zmq_socket(this1, type2);
   if((NULL == rc_zmq_socket1)) {
     lua_pushnil(L);
@@ -5671,8 +6307,9 @@ static int ZMQ_StopWatch__start__meth(lua_State *L) {
 /* method: stop */
 static int ZMQ_StopWatch__stop__meth(lua_State *L) {
   int this_flags1 = 0;
-  ZMQ_StopWatch * this1 = obj_type_ZMQ_StopWatch_delete(L,1,&(this_flags1));
+  ZMQ_StopWatch * this1;
   unsigned long usecs1 = 0;
+  this1 = obj_type_ZMQ_StopWatch_delete(L,1,&(this_flags1));
   if(!(this_flags1 & OBJ_UDATA_FLAG_OWN)) { return 0; }
   usecs1 = zmq_stopwatch_stop(this1);
   lua_pushinteger(L, usecs1);
@@ -5698,9 +6335,10 @@ static int zmq__version__func(lua_State *L) {
 
 /* method: init */
 static int zmq__init__func(lua_State *L) {
-  int io_threads1 = luaL_optinteger(L,1,1);
+  int io_threads1;
   int rc_zmq_init_flags1 = OBJ_UDATA_FLAG_OWN;
   ZMQ_Ctx * rc_zmq_init1;
+  io_threads1 = luaL_optinteger(L,1,1);
   rc_zmq_init1 = zmq_init(io_threads1);
   if((NULL == rc_zmq_init1)) {
     lua_pushnil(L);
@@ -5732,10 +6370,13 @@ static int zmq__init_ctx__func(lua_State *L) {
 /* method: device */
 #if (VERSION_2_0)
 static int zmq__device__func(lua_State *L) {
-  int device1 = luaL_checkinteger(L,1);
-  ZMQ_Socket * insock2 = obj_type_ZMQ_Socket_check(L,2);
-  ZMQ_Socket * outsock3 = obj_type_ZMQ_Socket_check(L,3);
+  int device1;
+  ZMQ_Socket * insock2;
+  ZMQ_Socket * outsock3;
   ZMQ_Error rc_zmq_device1 = 0;
+  device1 = luaL_checkinteger(L,1);
+  insock2 = obj_type_ZMQ_Socket_check(L,2);
+  outsock3 = obj_type_ZMQ_Socket_check(L,3);
   rc_zmq_device1 = zmq_device(device1, insock2, outsock3);
   /* check for error. */
   if((-1 == rc_zmq_device1)) {
@@ -5760,23 +6401,24 @@ static int zmq__stopwatch_start__func(lua_State *L) {
 
 /* method: sleep */
 static int zmq__sleep__func(lua_State *L) {
-  int seconds_1 = luaL_checkinteger(L,1);
+  int seconds_1;
+  seconds_1 = luaL_checkinteger(L,1);
   zmq_sleep(seconds_1);
   return 0;
 }
 
 
 
-static const luaL_reg obj_ZErrors_pub_funcs[] = {
+static const luaL_Reg obj_ZErrors_pub_funcs[] = {
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZErrors_methods[] = {
+static const luaL_Reg obj_ZErrors_methods[] = {
   {"description", ZErrors__description__meth},
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZErrors_metas[] = {
+static const luaL_Reg obj_ZErrors_metas[] = {
   {"__index", ZErrors____index__meth},
   {NULL, NULL}
 };
@@ -6193,14 +6835,18 @@ static const obj_const obj_ZErrors_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg obj_zmq_msg_t_pub_funcs[] = {
+static const reg_impl obj_ZErrors_implements[] = {
+  {NULL, NULL}
+};
+
+static const luaL_Reg obj_zmq_msg_t_pub_funcs[] = {
   {"init", zmq_msg_t__init__meth},
   {"init_size", zmq_msg_t__init_size__meth},
   {"init_data", zmq_msg_t__init_data__meth},
   {NULL, NULL}
 };
 
-static const luaL_reg obj_zmq_msg_t_methods[] = {
+static const luaL_Reg obj_zmq_msg_t_methods[] = {
   {"close", zmq_msg_t__close__meth},
   {"move", zmq_msg_t__move__meth},
   {"copy", zmq_msg_t__copy__meth},
@@ -6211,7 +6857,7 @@ static const luaL_reg obj_zmq_msg_t_methods[] = {
   {NULL, NULL}
 };
 
-static const luaL_reg obj_zmq_msg_t_metas[] = {
+static const luaL_Reg obj_zmq_msg_t_metas[] = {
   {"__gc", zmq_msg_t__delete__meth},
   {"__tostring", zmq_msg_t____tostring__meth},
   {"__eq", obj_simple_udata_default_equal},
@@ -6230,11 +6876,15 @@ static const obj_const obj_zmq_msg_t_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg obj_ZMQ_Socket_pub_funcs[] = {
+static const reg_impl obj_zmq_msg_t_implements[] = {
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_Socket_methods[] = {
+static const luaL_Reg obj_ZMQ_Socket_pub_funcs[] = {
+  {NULL, NULL}
+};
+
+static const luaL_Reg obj_ZMQ_Socket_methods[] = {
   {"close", ZMQ_Socket__close__meth},
   {"bind", ZMQ_Socket__bind__meth},
   {"connect", ZMQ_Socket__connect__meth},
@@ -6391,7 +7041,7 @@ static const luaL_reg obj_ZMQ_Socket_methods[] = {
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_Socket_metas[] = {
+static const luaL_Reg obj_ZMQ_Socket_metas[] = {
   {"__gc", ZMQ_Socket__close__meth},
   {"__tostring", obj_udata_default_tostring},
   {"__eq", obj_udata_default_equal},
@@ -6410,12 +7060,16 @@ static const obj_const obj_ZMQ_Socket_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg obj_ZMQ_Poller_pub_funcs[] = {
+static const reg_impl obj_ZMQ_Socket_implements[] = {
+  {NULL, NULL}
+};
+
+static const luaL_Reg obj_ZMQ_Poller_pub_funcs[] = {
   {"new", ZMQ_Poller__new__meth},
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_Poller_methods[] = {
+static const luaL_Reg obj_ZMQ_Poller_methods[] = {
   {"close", ZMQ_Poller__close__meth},
   {"add", ZMQ_Poller__add__meth},
   {"modify", ZMQ_Poller__modify__meth},
@@ -6426,7 +7080,7 @@ static const luaL_reg obj_ZMQ_Poller_methods[] = {
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_Poller_metas[] = {
+static const luaL_Reg obj_ZMQ_Poller_metas[] = {
   {"__gc", ZMQ_Poller__close__meth},
   {"__tostring", obj_simple_udata_default_tostring},
   {"__eq", obj_simple_udata_default_equal},
@@ -6445,18 +7099,22 @@ static const obj_const obj_ZMQ_Poller_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg obj_ZMQ_Ctx_pub_funcs[] = {
+static const reg_impl obj_ZMQ_Poller_implements[] = {
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_Ctx_methods[] = {
+static const luaL_Reg obj_ZMQ_Ctx_pub_funcs[] = {
+  {NULL, NULL}
+};
+
+static const luaL_Reg obj_ZMQ_Ctx_methods[] = {
   {"term", ZMQ_Ctx__term__meth},
   {"lightuserdata", ZMQ_Ctx__lightuserdata__meth},
   {"socket", ZMQ_Ctx__socket__meth},
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_Ctx_metas[] = {
+static const luaL_Reg obj_ZMQ_Ctx_metas[] = {
   {"__gc", ZMQ_Ctx__term__meth},
   {"__tostring", obj_udata_default_tostring},
   {"__eq", obj_udata_default_equal},
@@ -6475,17 +7133,21 @@ static const obj_const obj_ZMQ_Ctx_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg obj_ZMQ_StopWatch_pub_funcs[] = {
+static const reg_impl obj_ZMQ_Ctx_implements[] = {
+  {NULL, NULL}
+};
+
+static const luaL_Reg obj_ZMQ_StopWatch_pub_funcs[] = {
   {"start", ZMQ_StopWatch__start__meth},
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_StopWatch_methods[] = {
+static const luaL_Reg obj_ZMQ_StopWatch_methods[] = {
   {"stop", ZMQ_StopWatch__stop__meth},
   {NULL, NULL}
 };
 
-static const luaL_reg obj_ZMQ_StopWatch_metas[] = {
+static const luaL_Reg obj_ZMQ_StopWatch_metas[] = {
   {"__gc", ZMQ_StopWatch__stop__meth},
   {"__tostring", obj_udata_default_tostring},
   {"__eq", obj_udata_default_equal},
@@ -6504,7 +7166,11 @@ static const obj_const obj_ZMQ_StopWatch_constants[] = {
   {NULL, NULL, 0.0 , 0}
 };
 
-static const luaL_reg zmq_function[] = {
+static const reg_impl obj_ZMQ_StopWatch_implements[] = {
+  {NULL, NULL}
+};
+
+static const luaL_Reg zmq_function[] = {
   {"version", zmq__version__func},
   {"init", zmq__init__func},
   {"init_ctx", zmq__init_ctx__func},
@@ -6691,13 +7357,13 @@ static const obj_const zmq_constants[] = {
 
 
 static const reg_sub_module reg_sub_modules[] = {
-  { &(obj_type_ZErrors), REG_META, obj_ZErrors_pub_funcs, obj_ZErrors_methods, obj_ZErrors_metas, NULL, NULL, obj_ZErrors_constants, 0},
-  { &(obj_type_zmq_msg_t), REG_OBJECT, obj_zmq_msg_t_pub_funcs, obj_zmq_msg_t_methods, obj_zmq_msg_t_metas, obj_zmq_msg_t_bases, obj_zmq_msg_t_fields, obj_zmq_msg_t_constants, 0},
-  { &(obj_type_ZMQ_Socket), REG_OBJECT, obj_ZMQ_Socket_pub_funcs, obj_ZMQ_Socket_methods, obj_ZMQ_Socket_metas, obj_ZMQ_Socket_bases, obj_ZMQ_Socket_fields, obj_ZMQ_Socket_constants, 0},
-  { &(obj_type_ZMQ_Poller), REG_OBJECT, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants, 0},
-  { &(obj_type_ZMQ_Ctx), REG_OBJECT, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants, 0},
-  { &(obj_type_ZMQ_StopWatch), REG_OBJECT, obj_ZMQ_StopWatch_pub_funcs, obj_ZMQ_StopWatch_methods, obj_ZMQ_StopWatch_metas, obj_ZMQ_StopWatch_bases, obj_ZMQ_StopWatch_fields, obj_ZMQ_StopWatch_constants, 0},
-  {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0}
+  { &(obj_type_ZErrors), REG_META, obj_ZErrors_pub_funcs, obj_ZErrors_methods, obj_ZErrors_metas, NULL, NULL, obj_ZErrors_constants, NULL, 0},
+  { &(obj_type_zmq_msg_t), REG_OBJECT, obj_zmq_msg_t_pub_funcs, obj_zmq_msg_t_methods, obj_zmq_msg_t_metas, obj_zmq_msg_t_bases, obj_zmq_msg_t_fields, obj_zmq_msg_t_constants, obj_zmq_msg_t_implements, 0},
+  { &(obj_type_ZMQ_Socket), REG_OBJECT, obj_ZMQ_Socket_pub_funcs, obj_ZMQ_Socket_methods, obj_ZMQ_Socket_metas, obj_ZMQ_Socket_bases, obj_ZMQ_Socket_fields, obj_ZMQ_Socket_constants, obj_ZMQ_Socket_implements, 0},
+  { &(obj_type_ZMQ_Poller), REG_OBJECT, obj_ZMQ_Poller_pub_funcs, obj_ZMQ_Poller_methods, obj_ZMQ_Poller_metas, obj_ZMQ_Poller_bases, obj_ZMQ_Poller_fields, obj_ZMQ_Poller_constants, obj_ZMQ_Poller_implements, 0},
+  { &(obj_type_ZMQ_Ctx), REG_OBJECT, obj_ZMQ_Ctx_pub_funcs, obj_ZMQ_Ctx_methods, obj_ZMQ_Ctx_metas, obj_ZMQ_Ctx_bases, obj_ZMQ_Ctx_fields, obj_ZMQ_Ctx_constants, obj_ZMQ_Ctx_implements, 0},
+  { &(obj_type_ZMQ_StopWatch), REG_OBJECT, obj_ZMQ_StopWatch_pub_funcs, obj_ZMQ_StopWatch_methods, obj_ZMQ_StopWatch_metas, obj_ZMQ_StopWatch_bases, obj_ZMQ_StopWatch_fields, obj_ZMQ_StopWatch_constants, obj_ZMQ_StopWatch_implements, 0},
+  {NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0}
 };
 
 
@@ -6743,6 +7409,9 @@ LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 	const luaL_Reg *submodules = submodule_libs;
 	int priv_table = -1;
 
+	/* register interfaces */
+	obj_register_interfaces(L, obj_interfaces);
+
 	/* private table to hold reference to object metatables. */
 	lua_newtable(L);
 	priv_table = lua_gettop(L);
@@ -6758,7 +7427,7 @@ LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 	luaL_register(L, "zmq", zmq_function);
 #else
 	lua_newtable(L);
-	luaL_register(L, NULL, zmq_function);
+	luaL_setfuncs(L, zmq_function, 0);
 #endif
 
 	/* register module constants. */
@@ -6784,7 +7453,7 @@ LUA_NOBJ_API int luaopen_zmq(lua_State *L) {
 
 #if LUAJIT_FFI
 	if(nobj_check_ffi_support(L)) {
-		nobj_try_loading_ffi(L, "zmq", zmq_ffi_lua_code,
+		nobj_try_loading_ffi(L, "zmq.nobj.ffi.lua", zmq_ffi_lua_code,
 			zmq_ffi_export, priv_table);
 	}
 #endif
