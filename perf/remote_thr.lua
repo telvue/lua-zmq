@@ -31,6 +31,8 @@ local zmq = require"zmq"
 
 local ctx = zmq.init(1)
 local s = ctx:socket(zmq.PUB)
+-- for ZeroMQ 3.x need to change HWM option.
+s:set_hwm(0)
 s:connect(connect_to)
 
 zmq.sleep(1)

@@ -38,6 +38,8 @@ local child_code = [[
 
 	local ctx = zthreads.get_parent_ctx()
 	local s = ctx:socket(zmq.PUB)
+	-- for ZeroMQ 3.x need to change HWM option.
+	s:set_hwm(0)
 	s:connect(connect_to)
 
 	local data = ("0"):rep(message_size)
