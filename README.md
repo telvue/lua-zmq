@@ -17,7 +17,7 @@ See [API.md](https://github.com/Neopallium/lua-zmq/blob/master/API.md) and
 Requirements
 ============
 
-* ZeroMQ version 2.1.x.
+* ZeroMQ version 2.1, 2.2 or 3.2.
 * Might work with some 2.0.x versions (2.0.6 and lower are not supported).
 
 For Ubuntu 10.10 users:
