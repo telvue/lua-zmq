@@ -21,6 +21,22 @@
 object "zmq_msg_t" {
 	-- store the `zmq_msg_t` structure in Lua userdata object
 	userdata_type = "embed",
+	implements "Buffer" {
+		implement_method "const_data" {
+			c_function = "zmq_msg_data"
+		},
+		implement_method "get_size" {
+			c_function = "zmq_msg_size"
+		},
+	},
+	implements "MutableBuffer" {
+		implement_method "data" {
+			c_function = "zmq_msg_data"
+		},
+		implement_method "get_size" {
+			c_function = "zmq_msg_size"
+		},
+	},
 --
 -- Define zmq_msq_t type & function API for FFI
 --
