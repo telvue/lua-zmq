@@ -1422,8 +1422,106 @@ static FUNC_UNUSED void *nobj_delete_callback_state(lua_State *L, int owner_idx)
 
 
 
+
+
+typedef struct MutableBuffer_if {
+  uint8_t * (* const data)(void *this_v);
+  size_t (* const get_size)(void *this_v);
+} MutableBufferIF;
+
+/* a per-module unique pointer for fast lookup of an interface's implementation table. */
+static char obj_interface_MutableBufferIF[] = "MutableBufferIF";
+
+#define MutableBufferIF_VAR(var_name) \
+	MutableBufferIF *var_name ## _if; \
+	void *var_name;
+
+#define MutableBufferIF_LUA_OPTIONAL(L, _index, var_name) \
+	var_name = obj_implement_luaoptional(L, _index, (void **)&(var_name ## _if), \
+		obj_interface_MutableBufferIF)
+
+#define MutableBufferIF_LUA_CHECK(L, _index, var_name) \
+	var_name = obj_implement_luacheck(L, _index, (void **)&(var_name ## _if), \
+		obj_interface_MutableBufferIF)
+
+
+
+
+
+
+typedef struct Buffer_if {
+  const uint8_t * (* const const_data)(void *this_v);
+  size_t (* const get_size)(void *this_v);
+} BufferIF;
+
+/* a per-module unique pointer for fast lookup of an interface's implementation table. */
+static char obj_interface_BufferIF[] = "BufferIF";
+
+#define BufferIF_VAR(var_name) \
+	BufferIF *var_name ## _if; \
+	void *var_name;
+
+#define BufferIF_LUA_OPTIONAL(L, _index, var_name) \
+	var_name = obj_implement_luaoptional(L, _index, (void **)&(var_name ## _if), \
+		obj_interface_BufferIF)
+
+#define BufferIF_LUA_CHECK(L, _index, var_name) \
+	var_name = obj_implement_luacheck(L, _index, (void **)&(var_name ## _if), \
+		obj_interface_BufferIF)
+
+
+
+
 static char *obj_interfaces[] = {
+  obj_interface_MutableBufferIF,
+  obj_interface_BufferIF,
   NULL,
+};
+
+/**
+ * zmq_msg_t implements Buffer interface
+ */
+/** 
+ * Buffer interface method const_data
+ */
+static const uint8_t * zmq_msg_t_Buffer_const_data(void *this_v) {
+  zmq_msg_t * this_p = this_v;
+  return zmq_msg_data(this_p);
+}
+/** 
+ * Buffer interface method get_size
+ */
+static size_t zmq_msg_t_Buffer_get_size(void *this_v) {
+  zmq_msg_t * this_p = this_v;
+  return zmq_msg_size(this_p);
+}
+
+static const BufferIF zmq_msg_t_Buffer = {
+  zmq_msg_t_Buffer_const_data,
+  zmq_msg_t_Buffer_get_size
+};
+
+/**
+ * zmq_msg_t implements MutableBuffer interface
+ */
+/** 
+ * MutableBuffer interface method data
+ */
+static uint8_t * zmq_msg_t_MutableBuffer_data(void *this_v) {
+  zmq_msg_t * this_p = this_v;
+  return zmq_msg_data(this_p);
+}
+/** 
+ * MutableBuffer interface method get_size
+ */
+static size_t zmq_msg_t_MutableBuffer_get_size(void *this_v) {
+  zmq_msg_t * this_p = this_v;
+  return zmq_msg_size(this_p);
+}
+
+static const MutableBufferIF zmq_msg_t_MutableBuffer = {
+  zmq_msg_t_MutableBuffer_data,
+  zmq_msg_t_MutableBuffer_get_size
 };
 
 
@@ -2463,6 +2561,24 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "  return ffi_string_len(data1,data_len1)\n"
 "end\n"
 "\n"
+"-- zmq_msg_t implements Buffer interface\n"
+"do\n"
+"  local impl_meths = obj_register_interface(\"BufferIF\", \"zmq_msg_t\")\n"
+"-- Buffer interface method const_data\n"
+"impl_meths.const_data = C.zmq_msg_data\n"
+"-- Buffer interface method get_size\n"
+"impl_meths.get_size = C.zmq_msg_size\n"
+"end\n"
+"\n"
+"-- zmq_msg_t implements MutableBuffer interface\n"
+"do\n"
+"  local impl_meths = obj_register_interface(\"MutableBufferIF\", \"zmq_msg_t\")\n"
+"-- MutableBuffer interface method data\n"
+"impl_meths.data = C.zmq_msg_data\n"
+"-- MutableBuffer interface method get_size\n"
+"impl_meths.get_size = C.zmq_msg_size\n"
+"end\n"
+"\n"
 "_push.zmq_msg_t = obj_type_zmq_msg_t_push\n"
 "ffi.metatype(\"zmq_msg_t\", _priv.zmq_msg_t)\n"
 "-- End \"zmq_msg_t\" FFI interface\n"
@@ -2589,7 +2705,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "  local val1\n"
 "  local err2 = 0\n"
 "	local get = option_gets[opt2]\n"
-"	if get then\n"
+"	if get then\n", /* ----- CUT ----- */
 "		return get(self)\n"
 "	else\n"
 "		error(\"Invalid socket option.\")\n"
@@ -2616,7 +2732,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "function _meth.ZMQ_Socket.send(self, data2, flags3)\n"
 "  \n"
 "  local data_len2 = #data2\n"
-"  flags3 = flags3 or 0\n", /* ----- CUT ----- */
+"  flags3 = flags3 or 0\n"
 "  local rc_simple_zmq_send1 = 0\n"
 "  rc_simple_zmq_send1 = Cmod.simple_zmq_send(self, data2, data_len2, flags3)\n"
 "  -- check for error.\n"
@@ -3142,7 +3258,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "if (_meth.ZMQ_Socket.set_backlog) then\n"
 "function _meth.ZMQ_Socket.set_backlog(self, value2)\n"
 "  \n"
-"  \n"
+"  \n", /* ----- CUT ----- */
 "  local rc_lzmq_socket_set_backlog1 = 0\n"
 "  rc_lzmq_socket_set_backlog1 = Cmod.lzmq_socket_set_backlog(self, value2)\n"
 "  -- check for error.\n"
@@ -3160,7 +3276,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "function _meth.ZMQ_Socket.recovery_ivl_msec(self)\n"
 "  \n"
 "  local value1 = recovery_ivl_msec_value_tmp\n"
-"  local rc_lzmq_socket_recovery_ivl_msec2 = 0\n", /* ----- CUT ----- */
+"  local rc_lzmq_socket_recovery_ivl_msec2 = 0\n"
 "  rc_lzmq_socket_recovery_ivl_msec2 = Cmod.lzmq_socket_recovery_ivl_msec(self, value1)\n"
 "  if (-1 == rc_lzmq_socket_recovery_ivl_msec2) then\n"
 "    return nil,error_code__ZMQ_Error__push(rc_lzmq_socket_recovery_ivl_msec2)\n"
@@ -3685,7 +3801,7 @@ static const char *zmq_ffi_lua_code[] = { "local ffi=require\"ffi\"\n"
 "  local rc_zmq_device1 = 0\n"
 "  rc_zmq_device1 = C.zmq_device(device1, insock2, outsock3)\n"
 "  -- check for error.\n"
-"  if (-1 == rc_zmq_device1) then\n"
+"  if (-1 == rc_zmq_device1) then\n", /* ----- CUT ----- */
 "    return nil, error_code__ZMQ_Error__push(rc_zmq_device1)\n"
 "  end\n"
 "  return true\n"
@@ -6877,6 +6993,10 @@ static const obj_const obj_zmq_msg_t_constants[] = {
 };
 
 static const reg_impl obj_zmq_msg_t_implements[] = {
+  { "BufferIF", &(zmq_msg_t_Buffer) },
+
+  { "MutableBufferIF", &(zmq_msg_t_MutableBuffer) },
+
   {NULL, NULL}
 };
 
