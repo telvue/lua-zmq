@@ -83,4 +83,7 @@ ctx:term()
 local latency = elapsed / roundtrip_count / 2
 
 print(string.format("mean latency: %.3f [us]", latency))
+local secs = elapsed / (1000 * 1000)
+print(string.format("elapsed = %f", secs))
+print(string.format("msg/sec = %f", roundtrip_count / secs))
 
