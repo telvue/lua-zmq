@@ -30,8 +30,8 @@ local roundtrip_count = tonumber(arg[3])
 local zmq = require"zmq"
 
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.REQ)
-s:connect(connect_to)
+local s = assert(ctx:socket(zmq.REQ))
+assert(s:connect(connect_to))
 
 local data = ("0"):rep(message_size)
 local msg = zmq.zmq_msg_t.init_size(message_size)

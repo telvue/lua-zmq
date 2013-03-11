@@ -30,9 +30,9 @@ local message_count = tonumber(arg[3])
 local zmq = require"zmq"
 
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.PULL)
+local s = assert(ctx:socket(zmq.PULL))
 --s:setopt(zmq.SUBSCRIBE, "");
-s:bind(bind_to)
+assert(s:bind(bind_to))
 
 local function recv_msg(s,msg)
 	assert(s:recv_msg(msg))

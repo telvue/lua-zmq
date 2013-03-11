@@ -37,9 +37,9 @@ local child_code = [[
 	local zthreads = require"zmq.threads"
 
 	local ctx = zthreads.get_parent_ctx()
-	local s = ctx:socket(zmq.PUSH)
-	s:setopt(zmq.HWM, message_count/4)
-	s:connect(connect_to)
+	local s = assert(ctx:socket(zmq.PUSH))
+	assert(s:setopt(zmq.HWM, message_count/4))
+	assert(s:connect(connect_to))
 
 	local data = ("0"):rep(message_size)
 	local msg_data = zmq.zmq_msg_t.init_data(data)
@@ -68,8 +68,8 @@ local child_code = [[
 ]]
 
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.PULL)
-s:bind(bind_to)
+local s = assert(ctx:socket(zmq.PULL))
+assert(s:bind(bind_to))
 
 print(string.format("message size: %i [B]", message_size))
 print(string.format("message count: %i", message_count))

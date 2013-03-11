@@ -31,8 +31,8 @@ local zmq = require"zmq"
 local z_SNDMORE = zmq.SNDMORE
 
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.PUSH)
-s:connect(connect_to)
+local s = assert(ctx:socket(zmq.PUSH))
+assert(s:connect(connect_to))
 
 local data = ("0"):rep(message_size/2)
 local msg = zmq.zmq_msg_t.init_size(message_size/2)

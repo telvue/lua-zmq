@@ -52,8 +52,8 @@ local child_code = [[
 ]]
 
 local ctx = zmq.init(1)
-local s = ctx:socket(zmq.REQ)
-s:bind(bind_to)
+local s = assert(ctx:socket(zmq.REQ))
+assert(s:bind(bind_to))
 
 local child_thread = zthreads.runstring(ctx, child_code, connect_to, message_size, roundtrip_count)
 child_thread:start()
