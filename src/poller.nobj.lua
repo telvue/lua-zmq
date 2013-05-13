@@ -303,6 +303,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 		ffi_source[[
 	local fd = 0
 	local sock_type = type(${sock})
+	local sock
 	if sock_type == 'cdata' then
 		sock = obj_type_ZMQ_Socket_check(${sock})
 	elseif sock_type == 'number' then
@@ -355,6 +356,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 		ffi_source[[
 	local fd = 0
 	local sock_type = type(${sock})
+	local sock
 	if sock_type == 'cdata' then
 		sock = obj_type_ZMQ_Socket_check(${sock})
 		-- find sock in items list.
@@ -404,6 +406,7 @@ void poller_remove_item(ZMQ_Poller *poller, int idx);
 		ffi_source[[
 	local fd = 0
 	local sock_type = type(${sock})
+	local sock
 	if sock_type == 'cdata' then
 		sock = obj_type_ZMQ_Socket_check(${sock})
 		-- find sock in items list.
