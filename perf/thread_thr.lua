@@ -24,8 +24,8 @@ end
 
 local message_size = tonumber(arg[1] or 1)
 local message_count = tonumber(arg[2] or 100000)
-local bind_to = arg[3] or 'inproc://thread_lat_test'
-local connect_to = arg[4] or 'inproc://thread_lat_test'
+local bind_to = arg[3] or 'inproc://thread_thr_test'
+local connect_to = arg[4] or 'inproc://thread_thr_test'
 
 local zmq = require"zmq"
 local zthreads = require"zmq.threads"
