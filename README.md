@@ -1,6 +1,8 @@
 About
 =====
 
+[![travis-ci status](https://secure.travis-ci.org/Neopallium/lua-zmq.png?branch=master)](http://travis-ci.org/Neopallium/lua-zmq/builds)
+
 Lua bindings to zeromq2.  Check out the [ZeroMQ Guide with Lua examples](http://zguide.zeromq.org/lua:all).
 
 Windows
