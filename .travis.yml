@@ -3,8 +3,8 @@
 env:
   matrix:
     - LUA=lua5.1 LIBLUA=liblua5.1-dev     LUA_INCDIR=/usr/include/lua5.1     LUA_LIB=lua5.1
-    - LUA=lua5.2 LIBLUA=liblua5.2-dev     LUA_INCDIR=/usr/include/lua5.2     LUA_LIB=lua5.2
-    - LUA=luajit LIBLUA=libluajit-5.1-dev LUA_INCDIR=/usr/include/luajit-2.0 LUA_LIB=luajit-5.1
+    #- LUA=lua5.2 LIBLUA=liblua5.2-dev     LUA_INCDIR=/usr/include/lua5.2     LUA_LIB=lua5.2
+    #- LUA=luajit LIBLUA=libluajit-5.1-dev LUA_INCDIR=/usr/include/luajit-2.0 LUA_LIB=luajit-5.1
 
 branches:
   only:
@@ -19,6 +19,7 @@ before_install:
     fi
 
 install:
+  - sudo apt-get install libzmq-dev -y
   - sudo apt-get install $LUA -y
   - sudo apt-get install $LIBLUA -y
   - LUA_LIBDIR=`pkg-config $LUA --variable=libdir`
