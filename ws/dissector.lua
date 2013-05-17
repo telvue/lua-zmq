@@ -34,13 +34,13 @@ tcp_port_end = -1,
 -- setup protocol fields.
 zmq_proto.fields = {}
 local fds = zmq_proto.fields
-fds.frame = ProtoField.new("Frame", "zmq.frame", "FT_BYTES", nil, "BASE_NONE")
-fds.length = ProtoField.new("Frame Length", "zmq.frame.len", "FT_UINT64", nil, "BASE_DEC")
-fds.length8 = ProtoField.new("Frame 8bit Length", "zmq.frame.len8", "FT_UINT8", nil, "BASE_DEC")
-fds.length64 = ProtoField.new("Frame 64bit Length", "zmq.frame.len64", "FT_UINT64", nil, "BASE_DEC")
-fds.flags = ProtoField.new("Frame Flags", "zmq.frame.flags", "FT_UINT8", nil, "BASE_HEX", "0xFF")
-fds.flags_more = ProtoField.new("More", "zmq.frame.flags.more", "FT_UINT8", nil, "BASE_HEX", "0x01")
-fds.body = ProtoField.new("Frame body", "zmq.frame.body", "FT_BYTES", nil, "BASE_NONE")
+fds.frame = ProtoField.new("Frame", "zmq.frame", "ftypes.BYTES", nil, "base.NONE")
+fds.length = ProtoField.new("Frame Length", "zmq.frame.len", "ftypes.UINT64", nil, "base.DEC")
+fds.length8 = ProtoField.new("Frame 8bit Length", "zmq.frame.len8", "ftypes.UINT8", nil, "base.DEC")
+fds.length64 = ProtoField.new("Frame 64bit Length", "zmq.frame.len64", "ftypes.UINT64", nil, "base.DEC")
+fds.flags = ProtoField.new("Frame Flags", "zmq.frame.flags", "ftypes.UINT8", nil, "base.HEX", "0xFF")
+fds.flags_more = ProtoField.new("More", "zmq.frame.flags.more", "ftypes.UINT8", nil, "base.HEX", "0x01")
+fds.body = ProtoField.new("Frame body", "zmq.frame.body", "ftypes.BYTES", nil, "base.NONE")
 
 -- un-register zmq to handle tcp port range
 local function unregister_tcp_port_range(start_port, end_port)
