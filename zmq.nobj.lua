@@ -44,6 +44,7 @@ c_source "typedefs" [[
 #define VERSION_2_1 0
 #define VERSION_2_2 0
 #define VERSION_3_0 0
+#define VERSION_3_2 0
 #if defined(ZMQ_VERSION_MAJOR)
 #  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 2)
 #    undef VERSION_2_2
@@ -54,6 +55,14 @@ c_source "typedefs" [[
 #  if (ZMQ_VERSION_MAJOR == 2) && (ZMQ_VERSION_MINOR == 1)
 #    undef VERSION_2_1
 #    define VERSION_2_1 1
+#  endif
+#  if (ZMQ_VERSION_MAJOR == 3) && (ZMQ_VERSION_MINOR == 2)
+#    undef VERSION_2_0
+#    define VERSION_2_0 0
+#    undef VERSION_3_2
+#    define VERSION_3_2 1
+#    undef VERSION_3_0
+#    define VERSION_3_0 1
 #  endif
 #  if (ZMQ_VERSION_MAJOR == 3)
 #    undef VERSION_2_0
@@ -230,9 +239,13 @@ c_function "init_ctx" {
 	end
 ]],
 },
-c_function "device" { if_defs = "VERSION_2_0",
+c_function "device" { if_defs = { "VERSION_2_0", "VERSION_3_2" },
 	c_call "ZMQ_Error" "zmq_device"
 		{ "int", "device", "ZMQ_Socket *", "insock", "ZMQ_Socket *", "outsock" },
+},
+c_function "proxy" { if_defs = "VERSION_3_2",
+	c_call "ZMQ_Error" "zmq_proxy"
+		{ "ZMQ_Socket *", "frontend", "ZMQ_Socket *", "backend", "ZMQ_Socket *", "capture?" },
 },
 
 --
