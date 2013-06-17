@@ -6488,6 +6488,7 @@ static int ZMQ_Ctx__socket__meth(lua_State *L) {
   if((NULL == rc_zmq_socket1)) {
     lua_pushnil(L);
     lua_pushstring(L, get_zmq_strerror());
+    return 2;
   } else {
     obj_type_ZMQ_Socket_push(L, rc_zmq_socket1, rc_zmq_socket_flags1);
   }
@@ -6542,6 +6543,7 @@ static int zmq__init__func(lua_State *L) {
   if((NULL == rc_zmq_init1)) {
     lua_pushnil(L);
     lua_pushstring(L, get_zmq_strerror());
+    return 2;
   } else {
     obj_type_ZMQ_Ctx_push(L, rc_zmq_init1, rc_zmq_init_flags1);
   }
@@ -6560,6 +6562,7 @@ static int zmq__init_ctx__func(lua_State *L) {
   if((NULL == ctx1)) {
     lua_pushnil(L);
     lua_pushstring(L, get_zmq_strerror());
+    return 2;
   } else {
     obj_type_ZMQ_Ctx_push(L, ctx1, 0);
   }
