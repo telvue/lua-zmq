@@ -25,21 +25,6 @@
 local zmq = require"zmq"
 local llthreads = require"llthreads"
 
-local setmetatable = setmetatable
-local tonumber = tonumber
-local assert = assert
-
-local thread_mt = {}
-thread_mt.__index = thread_mt
-
-function thread_mt:start(detached)
-	return self.thread:start(detached)
-end
-
-function thread_mt:join()
-	return self.thread:join()
-end
-
 local bootstrap_pre = [[
 local action, action_arg, parent_ctx = ...
 local func
@@ -79,10 +64,7 @@ local function new_thread(ctx, action, action_arg, ...)
 	if ctx then
 		ctx = ctx:lightuserdata()
 	end
-	local thread = llthreads.new(bootstrap_code, action, action_arg, ctx, ...)
-	return setmetatable({
-		thread = thread,
-	}, thread_mt)
+	return llthreads.new(bootstrap_code, action, action_arg, ctx, ...)
 end
 
 local M = {}
