@@ -56,6 +56,14 @@ c_source "typedefs" [[
 #    undef VERSION_2_1
 #    define VERSION_2_1 1
 #  endif
+#  if (ZMQ_VERSION_MAJOR == 3) && (ZMQ_VERSION_MINOR == 3)
+#    undef VERSION_2_0
+#    define VERSION_2_0 0
+#    undef VERSION_3_2
+#    define VERSION_3_2 1
+#    undef VERSION_3_0
+#    define VERSION_3_0 1
+#  endif
 #  if (ZMQ_VERSION_MAJOR == 3) && (ZMQ_VERSION_MINOR == 2)
 #    undef VERSION_2_0
 #    define VERSION_2_0 0
